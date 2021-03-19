@@ -17,6 +17,9 @@ drop_values = drop_values[drop_values.Include == 'x']
 drop_values = pd.DataFrame(columns=drop_values['Variable'].values)
 
 ahs_2019 = ahs_2019[(drop_values.columns) & (ahs_2019.columns)]
-ahs_2019.MARKETVAL[ahs_2019.MARKETVAL != -6]
+ahs_2019 = ahs_2019[ahs_2019.MARKETVAL != -6]
+ahs_2019 = ahs_2019.replace(r"'", '', regex=True)
+
+counter = ahs_2019.loc[ahs_2019[i] == -6].sum(axis = 0)
 print(ahs_2019)
 
