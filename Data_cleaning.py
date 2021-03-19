@@ -22,14 +22,20 @@ drop_values = pd.DataFrame(columns=drop_values['Variable'].values)
 ahs_2019 = ahs_2019[(drop_values.columns) & (ahs_2019.columns)]
 ahs_2019 = ahs_2019.replace(r"'", '', regex=True)
 ahs_2019 = ahs_2019.apply(pd.to_numeric, errors='coerce')
-ahs_2019_wmv = ahs_2019[(ahs_2019.MARKETVAL & ahs_2019.RENT !=-6)]
+ahs_2019_both = ahs_2019[(ahs_2019.MARKETVAL & ahs_2019.RENT !=-6)]
+ahs_2019_marketval = ahs_2019[(ahs_2019.MARKETVAL != -6)]
+
 
 # check data types
-ahs_2019_wmv.dtypes
+ahs_2019_both.dtypes
 
 # count missing values
-counted_ahs = ahs_2019_wmv[ahs_2019 != -6].count()/ahs_2019_wmv.shape[0]
+counted_ahs_both = ahs_2019_both[ahs_2019_both != -6].count()/ahs_2019_both.shape[0]
+counted_ahs_marketval = ahs_2019_marketval[ahs_2019_marketval != -6].count()/ahs_2019_marketval.shape[0]
+
 
 # save counts
-counted_ahs.to_csv('Data/counted_ahs_both.csv')
+counted_ahs_both.to_csv('counted_ahs_both.csv')
+counted_ahs_marketval.to_csv('counted_ahs_marketval.csv')
+
 
