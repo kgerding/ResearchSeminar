@@ -36,6 +36,6 @@ ahs_2019[cols] = ahs_2019[cols].apply(pd.to_numeric, errors='coerce')
 ahs_2019.dtypes
 
 
-counted_ahs = ahs_2019[ahs_2019 != -6].count()
+counted_ahs = ahs_2019[ahs_2019 != -6].count()/ahs_2019.shape[0]
 
 counted_ahs.to_csv('Data/counted_ahs.csv')
