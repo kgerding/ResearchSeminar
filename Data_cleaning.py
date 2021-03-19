@@ -28,6 +28,4 @@ drop_values = drop_values[drop_values.Include == 'x']
 drop_values = pd.DataFrame(columns=drop_values['Variable'].values)
 
 ahs_2019 = ahs_2019[(drop_values.columns) & (ahs_2019.columns)]
-
-
 ahs_2019.MARKETVAL[ahs_2019.MARKETVAL != -6]
