@@ -1,4 +1,4 @@
-#This file is for data cleaning
+# This file is for data cleaning
 import os
 import pandas as pd
 import numpy as np
@@ -7,15 +7,6 @@ import numpy as np
 path = os.path.abspath(os.getcwd())
 print(path)
 
-# Compute the relative file path
-# to the given path from the
-# the given start directory.
-relative_path = os.path.relpath(path, start)
-
-# Print the relative file path
-# to the given path from the
-# the given start directory.
-print(relative_path)
 
 # Step 1: Read in Data
 ahs_2019 = pd.read_csv(path + "/Data/AHS 2019 National PUF v1.1 CSV/household_national.csv", index_col=0)
