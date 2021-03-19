@@ -21,11 +21,11 @@ print(relative_path)
 ahs_2019 = pd.read_csv(path + "/Data/AHS 2019 National PUF v1.1 CSV/household_national.csv", index_col=0)
 
 # Step 2: get the right values
-drop_values = pd.read_excel(path + "/Info on Data/codebook_2019.xlsx")
+drop_values = pd.read_excel(path + "/Info on Data/codebook_2019.xls")
 drop_values = drop_values[drop_values.Include == 'x']
 drop_values = pd.DataFrame(columns=drop_values['Variable'].values)
 
 ahs_2019 = ahs_2019[(drop_values.columns) & (ahs_2019.columns)]
 ahs_2019.MARKETVAL[ahs_2019.MARKETVAL != -6]
+print(ahs_2019)
 
-os.path.relpath()
