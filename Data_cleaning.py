@@ -12,7 +12,7 @@ print(path)
 ahs_2019 = pd.read_csv(path + "/Data/AHS 2019 National PUF v1.1 CSV/household_national.csv", index_col=0)
 
 # Step 2: get the right values
-drop_values = pd.read_excel(path + "/Info on Data/codebook_2019.xls")
+drop_values = pd.read_excel(path + "/Info on Data/codebook_2019_new.xls")
 drop_values = drop_values[drop_values.Include == 'x']
 drop_values = pd.DataFrame(columns=drop_values['Variable'].values)
 
@@ -25,17 +25,13 @@ ahs_2019 = ahs_2019.apply(pd.to_numeric, errors='coerce')
 ahs_2019_both = ahs_2019[(ahs_2019.MARKETVAL & ahs_2019.RENT !=-6)]
 ahs_2019_marketval = ahs_2019[(ahs_2019.MARKETVAL != -6)]
 
-
-# check data types
-ahs_2019_both.dtypes
-
 # count missing values
 counted_ahs_both = ahs_2019_both[ahs_2019_both != -6].count()/ahs_2019_both.shape[0]
 counted_ahs_marketval = ahs_2019_marketval[ahs_2019_marketval != -6].count()/ahs_2019_marketval.shape[0]
 
+ahs_2019_both.head()
 
-# save counts
-counted_ahs_both.to_csv('counted_ahs_both.csv')
-counted_ahs_marketval.to_csv('counted_ahs_marketval.csv')
-
-
+# Step 3: Match CSMB
+longlat_2018 = pd.read_csv(path + "/Data/cbsa-boundaries-2018.csv", sep=';')
+longlat_2018.loc[:,"Year"].unique()
+longlat_2018.columns
