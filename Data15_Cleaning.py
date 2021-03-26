@@ -2,10 +2,13 @@
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 # Path
 path = os.path.abspath(os.getcwd())
 print(path)
+
 
 ##### 2015 ##### ---------------------------------------------------------
 
@@ -31,7 +34,7 @@ counted_ahs_both = ahs_2015_both[ahs_2015_both != -
 counted_ahs_marketval = ahs_2015_marketval[ahs_2015_marketval != -6].count(
 )/ahs_2015_marketval.shape[0]
 
-ahs_2015_both
+print(ahs_2015_both)
 
 
 ##### 2017 ##### ---------------------------------------------------------
@@ -59,7 +62,7 @@ counted_ahs_both = ahs_2017_both[ahs_2017_both != -
 counted_ahs_marketval = ahs_2017_marketval[ahs_2017_marketval != -6].count(
 )/ahs_2017_marketval.shape[0]
 
-ahs_2017_both
+print(ahs_2017_both)
 
 ##### 2019 ##### ---------------------------------------------------------
 
@@ -85,7 +88,7 @@ counted_ahs_both = ahs_2019_both[ahs_2019_both != -
 counted_ahs_marketval = ahs_2019_marketval[ahs_2019_marketval != -6].count(
 )/ahs_2019_marketval.shape[0]
 
-ahs_2019_both
+print(ahs_2019_both)
 
 ##### COMPARISON ##### ---------------------------------------------------------
 files = [ahs_2015_both, ahs_2017_both, ahs_2019_both]
@@ -101,7 +104,6 @@ for i in files:
 columns = ['MARKETVAL', 'YRBUILT', 'TOTROOMS', 'RENT', 'KITCHENS', 'BATHROOMS', 'BEDROOMS']
 index = (1,2,3)
 df = pd.DataFrame(index = index, columns = columns)
-df
 
 #check for control variable 1 if there are any changes
 x = 11000001
@@ -109,6 +111,9 @@ for col in columns:
     df.loc[1, col] = (ahs_2015_both.loc[ahs_2015_both['CONTROL'] == x])[col][0]
     df.loc[2, col] = (ahs_2017_both.loc[ahs_2017_both['CONTROL'] == x])[col][0]
     df.loc[3, col] = (ahs_2019_both.loc[ahs_2019_both['CONTROL'] == x])[col][0]
+
+print('CONTROL VARIABLE', x)
+print(df)
 
 ##### CONCATIANTE ##### ---------------------------------------------------------
 # get all the same columns for concat
@@ -123,3 +128,5 @@ ahs_2019_both['Year'] = 2019
 
 # concat dataframes in long-format
 ahs_total = pd.concat([ahs_2015_both, ahs_2017_both, ahs_2019_both])
+
+ahs_total.to_csv('AHS_Total.csv')
