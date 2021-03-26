@@ -19,12 +19,20 @@ fit_rent_2019 <- lm(RENT ~ BEDROOMS + BATHROOMS + KITCHENS + YRBUILT + GARAGE + 
 
 summary(fit_rent_2015)
 plot(fit_rent_2015)
+
+m <- floor(0.75*length(resid(fit_rent_2015))^(1/3)) #rule of thumb for nb of lags
+#coeftest function (from the lmtest package), where we can specify our var-cov matrix (vcov):
+fit.rob <- coeftest(fit_rent_2015, vcov = NeweyWest(fit_rent_2015, lag=m, prewhite = F, adjust = T)) 
+fit.rob
+
+
 summary(fit_rent_2017)
 plot(fit_rent_2017)
 summary(fit_rent_2019)
 plot(fit_rent_2019)
 
-fit_price_2015 <- lm(MARKETVAL ~ BEDROOMS + BATHROOMS + KITCHENS + YRBUILT + GARAGE + STORIES,data = price2015)
+fit_price_2015 <- lm(MARKETVAL ~ .  ,data = price2015)
+
 fit_price_2017 <- lm(MARKETVAL ~ BEDROOMS + BATHROOMS + KITCHENS + YRBUILT + GARAGE + STORIES,data = price2017)
 fit_price_2019 <- lm(MARKETVAL ~ BEDROOMS + BATHROOMS + KITCHENS + YRBUILT + GARAGE + STORIES,data = price2019)
 
