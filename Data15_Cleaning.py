@@ -97,16 +97,15 @@ for i in files:
     i.loc[:, 'CONTROL'] = i.loc[:, 'CONTROL'].apply(pd.to_numeric, errors='coerce')
     print(i.dtypes)
 
-mergedStuff = pd.merge(ahs_2015_both, ahs_2017_both, on=['CONTROL'], how='inner')
-mergedStuff.head()
+# set up an empty dataframe
+columns = ['MARKETVAL', 'YRBUILT', 'TOTROOMS', 'RENT', 'KITCHENS', 'BATHROOMS', 'BEDROOMS']
+index = (1,2,3)
+df = pd.DataFrame(index = index, columns = columns)
+df
 
-df = pd.concat([ahs_2015_both, ahs_2017_both])
-df = df.reset_index(drop=True)
-df = df.groupby(list(df.columns))
-
-
-ahs_2015_both.sort_index(inplace=True)
-ahs_2017_both.sort_index(inplace=True)
-
-np.where(ahs_2015_both.loc[0:65980, 'CONTROL'] == ahs_2017_both.loc[0:65980,'CONTROL'], 'True', 'False')
-ahs_2015_both['CONTROL'].isin(ahs_2017_both['CONTROL']).value_counts()
+#check for control variable 1 if there are any changes
+x = 11000001
+for col in columns:
+    df.loc[1, col] = (ahs_2015_both.loc[ahs_2015_both['CONTROL'] == x])[col][0]
+    df.loc[2, col] = (ahs_2017_both.loc[ahs_2017_both['CONTROL'] == x])[col][0]
+    df.loc[3, col] = (ahs_2019_both.loc[ahs_2019_both['CONTROL'] == x])[col][0]
