@@ -109,3 +109,17 @@ for col in columns:
     df.loc[1, col] = (ahs_2015_both.loc[ahs_2015_both['CONTROL'] == x])[col][0]
     df.loc[2, col] = (ahs_2017_both.loc[ahs_2017_both['CONTROL'] == x])[col][0]
     df.loc[3, col] = (ahs_2019_both.loc[ahs_2019_both['CONTROL'] == x])[col][0]
+
+##### CONCATIANTE ##### ---------------------------------------------------------
+# get all the same columns for concat
+ahs_2015_both = ahs_2015_both[(ahs_2015_both.columns) & (ahs_2017_both.columns) & (ahs_2019_both.columns)]
+ahs_2017_both = ahs_2017_both[(ahs_2015_both.columns) & (ahs_2017_both.columns) & (ahs_2019_both.columns)]
+ahs_2019_both = ahs_2019_both[(ahs_2015_both.columns) & (ahs_2017_both.columns) & (ahs_2019_both.columns)]
+
+# add column with respective year
+ahs_2015_both['Year'] = 2015
+ahs_2017_both['Year'] = 2017
+ahs_2019_both['Year'] = 2019
+
+# concat dataframes in long-format
+ahs_total = pd.concat([ahs_2015_both, ahs_2017_both, ahs_2019_both])
