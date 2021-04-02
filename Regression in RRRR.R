@@ -1,6 +1,6 @@
 # regression
 
-data <- read.csv('./AHS_Total.csv', sep = ',')
+data <- read.csv('./Data/AHS_Total.csv', sep = ',')
 
 
 # subsetting
