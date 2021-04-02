@@ -9,6 +9,8 @@ library(quantmod)
 library(TTR)
 library(PerformanceAnalytics)
 library(ggplot2)
+library(spdep)
+
 
 
 
@@ -20,9 +22,87 @@ prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
 
 # Data Inspection ---------------------------------------------------------
 
-# Step 1: Eliminate columns with more than NAs
+# Step 0: Rename the Data
 
-na_counter <- lapply(prices2016, sum(is.na(prices2016))/nrow(prices2016))
+p2016 <- prices2016 %>% rename(
+  id_parcel = parcelid,
+  year_built = yearbuilt,
+  area_basement = basementsqft,
+  area_patio = yardbuildingsqft17,
+  area_shed = yardbuildingsqft26, 
+  area_pool = poolsizesum,  
+  area_lot = lotsizesquarefeet, 
+  area_garage = garagetotalsqft,
+  area_firstfloor_finished = finishedfloor1squarefeet,
+  area_total_calc = calculatedfinishedsquarefeet,
+  area_base = finishedsquarefeet6,
+  area_live_finished = finishedsquarefeet12,
+  area_liveperi_finished = finishedsquarefeet13,
+  area_total_finished = finishedsquarefeet15,  
+  area_unknown = finishedsquarefeet50,
+  num_unit = unitcnt, 
+  num_story = numberofstories,  
+  num_room = roomcnt,
+  num_bathroom = bathroomcnt,
+  num_bedroom = bedroomcnt,
+  num_bathroom_calc = calculatedbathnbr,
+  num_bath = fullbathcnt,  
+  num_75_bath = threequarterbathnbr, 
+  num_fireplace = fireplacecnt,
+  num_pool = poolcnt,  
+  num_garage = garagecarcnt,  
+  num_tax_total = taxvaluedollarcnt,
+  num_tax_building = structuretaxvaluedollarcnt,
+  num_tax_land = landtaxvaluedollarcnt,
+  num_tax_property = taxamount,
+  tax_assess_year = assessmentyear,
+  tax_delinquency_flag = taxdelinquencyflag,
+  tax_delinquency_year = taxdelinquencyyear,
+  loc_county = regionidcounty,
+  loc_city = regionidcity,
+  loc_zip = regionidzip,
+  loc_neighbor = regionidneighborhood, 
+  loc_fips = fips,
+  loc_tract_block = censustractandblock,
+  loc_raw_tract_block = rawcensustractandblock,
+  loc_longitude = longitude,
+  loc_latitude = latitude,
+  flag_fireplace = fireplaceflag, 
+  flag_tub_or_spa = hashottuborspa,
+  flag_spa_or_tub_pool = pooltypeid2,
+  flag_no_tub = pooltypeid7,
+  flag_spa_or_tub = pooltypeid10,
+  type_desc_zoning_landuse = propertyzoningdesc,
+  type_zoning_landuse = propertylandusetypeid,
+  type_zoning_landuse_county = propertycountylandusecode,
+  type_quality = buildingqualitytypeid,
+  type_framing = buildingclasstypeid,
+  type_material = typeconstructiontypeid,
+  type_deck = decktypeid,
+  type_story = storytypeid,
+  type_heating = heatingorsystemtypeid,
+  type_ac = airconditioningtypeid,
+  type_architect = architecturalstyletypeid
+)
+
+# Step 1: Eliminate columns with more than 20% NAs
+
+# quick plot
+count_nas <- colSums(is.na(p2016))/nrow(p2016)
+sorted <- rev(sort(count_nas))
+barplot(sorted, cex.names = 0.5, las = 2)
+abline(v=35, col="red")
+
+#delete columns
+p2016 <- p2016[, which(colSums(is.na(p2016)/nrow(p2016)) < 0.2)]
+
+# clean house prices
+hist(p2016$num_tax_total[p2016$num_tax_total < 1000000], breaks = 100)
+p2016 <- p2016[p2016$num_tax_total >= 50000,]
 
 
-
+summarise(col(p2016))
+# select only relevant
+p2016 <- p2016[, -c('type_zoning_landuse_county', 'type_zoning_landuse', 'type_desc_zoning_landuse', 'loc_raw_tract_bloc')]
+test <- na.omit(p2016)
+within(test, rm(x, y))
