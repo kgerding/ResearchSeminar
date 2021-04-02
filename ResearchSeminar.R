@@ -12,7 +12,7 @@ library(ggplot2)
 library(spdep)
 
 
-
+rm(list=ls())
 
 # Read in Data ------------------------------------------------------------
 
@@ -113,7 +113,7 @@ hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
               'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot','type_zoning_landuse_county',
               'type_zoning_landuse','loc_zip','loc_county', 'year_built', 'flag_fireplace', 'num_tax_building',
               'num_tax_total', 'num_tax_land')
-p2016 <- p2016[, hedonics ]
+p2016 <- p2016 %>% select(hedonics)
 
 # transform dummies and factors
 p2016$flag_tub_or_spa[p2016$flag_tub_or_spa == 'true'] <- 1
@@ -128,16 +128,12 @@ p2016 <- left_join(p2016, id, by = 'type_zoning_landuse')
 p2016 <- p2016[ , -which(names(p2016) %in% c("type_zoning_landuse"))]
 p2016$factor <- as.factor(p2016$factor)
 
-
 # clean house prices
-hist(p2016$num_tax_total[p2016$num_tax_total < 1000000], breaks = 100)
+hist(p2016$num_tax_building[p2016$num_tax_building < 500000], breaks = 100)
 p2016 <- p2016[p2016$num_tax_total >= 50000,]
-
-summary(p2016) 
-
-
-# select only relevant
-test <- na.omit(p2016)
+p2016 <- filter(p2016, num_tax_building < 10000)
+nrow(filter(p2016, num_tax_building < 10000))
+summary(p2016)
 
 
 # lm 
