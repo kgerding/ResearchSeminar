@@ -90,11 +90,11 @@ colnames(id) <- c('type_zoning_landuse', 'factor')
 
 # Step 1: Eliminate columns with more than 20% NAs
 
-# quick plot
-count_nas <- colSums(is.na(p2016))/nrow(p2016)
-sorted <- rev(sort(count_nas))
-barplot(sorted, cex.names = 0.5, las = 2)
-abline(v=35, col="red")
+# # quick plot
+# count_nas <- colSums(is.na(p2016))/nrow(p2016)
+# sorted <- rev(sort(count_nas))
+# barplot(sorted, cex.names = 0.5, las = 2)
+# abline(v=35, col="red")
 
 #delete columns
 p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
@@ -110,18 +110,18 @@ p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
 
 # select hedonics
 hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
-              'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot','type_zoning_landuse_county',
+              'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot',
               'type_zoning_landuse','loc_zip','loc_county', 'year_built', 'flag_fireplace', 'num_tax_building',
               'num_tax_total', 'num_tax_land')
 p2016 <- p2016 %>% select(hedonics)
 
 # transform dummies and factors
 p2016$flag_tub_or_spa[p2016$flag_tub_or_spa == 'true'] <- 1
-p2016$flag_tub_or_spa[p2016$flag_tub_or_spa != 'true'] <- 0
+p2016$flag_tub_or_spa[p2016$flag_tub_or_spa != '1'] <- 0
 p2016$flag_fireplace[p2016$flag_fireplace == 'true'] <- 1
-p2016$flag_fireplace[p2016$flag_fireplace != 'true'] <- 0
-p2016$flag_tub_or_spa <- as.numeric(p2016$flag_tub_or_spa)
-p2016$flag_fireplace <- as.numeric(p2016$flag_fireplace)
+p2016$flag_fireplace[p2016$flag_fireplace != '1'] <- 0
+p2016$flag_tub_or_spa <- as.numeric(as.character(p2016$flag_tub_or_spa))
+p2016$flag_fireplace <- as.numeric(as.character(p2016$flag_fireplace))
 
 # type id as factor
 p2016 <- left_join(p2016, id, by = 'type_zoning_landuse')
@@ -131,14 +131,53 @@ p2016$factor <- as.factor(p2016$factor)
 # clean house prices
 hist(p2016$num_tax_building[p2016$num_tax_building < 500000], breaks = 100)
 p2016 <- p2016[p2016$num_tax_total >= 50000,]
-p2016 <- filter(p2016, num_tax_building < 10000)
-nrow(filter(p2016, num_tax_building < 10000))
-summary(p2016)
 
 
-# lm 
-hedonic <- lm(num_tax_building ~ num_bathroom + num_bedroom + area_live_finished + area_lot + year_built, data = p2016)
+# simple regression
+hedonic <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
+                flag_tub_or_spa + area_lot + year_built + flag_fireplace, data = p2016)
 summary(hedonic)
+
+#plot 
+ggplot(data = p2016[1:10000,], aes(x = num_bedroom, y = num_tax_total)) +
+  geom_point()
+
+# lm with factors
+hedonic <- lm(num_tax_total ~ num_bathroom + num_bedroom + area_live_finished + 
+                flag_tub_or_spa + area_lot + year_built + flag_fireplace + factor, data = p2016)
+summary(hedonic)
+
+# we do we get negative values in the regression?
+summary(p2016)
+hist(p2016$num_bathroom, breaks = 100) 
+hist(p2016$num_bedroom, breaks = 100)
+hist(p2016$area_lot, xlim = c(0,50000), breaks = 100000)
+
+# filter beds
+nobeds <- filter(p2016, num_bedroom == 0)
+nrow(nobeds)/nrow(p2016)
+summary(nobeds)
+# conclusion: low building structure values when we have no bedrooms, building could be a run-down home.
+
+# filter baths
+nobaths <- filter(p2016, num_bathroom == 0)
+nrow(nobaths)/nrow(p2016)
+summary(nobeds)
+# conclusion: low building structure values when we have no bathrooms, building could be a run-down home.
+
+
+### ALGORITHMS ###-------------------------
+# seperate training and testing data
+smp_size <- floor(0.75 * nrow(p2016)) ## 75% of the sample size
+
+## set the seed to make your partition reproducible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(p2016)), size = smp_size)
+
+train16 <- p2016[train_ind, ]
+test16 <- p2016[-train_ind, ]
+
+
 
 
 
