@@ -142,7 +142,7 @@ p2016 <- p2016[p2016$num_bedroom >= 0,]
 p2016 <- p2016[p2016$num_bathroom >= 0,]
 
 
-## Step 5: Plot the variable relationships -------------------------------
+## Step 5: Plot the variable relationships and remove outliers -------------------------------
 # plot bedroom vs tax
 ggplot(data = p2016[1:100000,], aes(x = num_bedroom, y = log(num_tax_building))) +
   geom_point()
@@ -153,27 +153,52 @@ ggplot(data = p2016[1:100000,], aes(x = num_bathroom, y = log(num_tax_building))
 
 # plot size vs tax
 ggplot(data = p2016[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
-  geom_point()
+  geom_point() 
+# we need to filter the outlier of high area_live finished: 
+p2016 <- filter(p2016, area_live_finished < 58000)
+
+ggplot(data = p2016[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
+  geom_point() 
 
 # plot age vs tax
-ggplot(data = p2016[1:100000,], aes(x = age, y = (num_tax_building))) +
-  geom_point()
+ggplot(data = p2016[1:100000,], aes(x = age, y = (log(num_tax_building)))) +
+  geom_point() 
 
+# plot area_lot vs tax
+ggplot(data = p2016[1:100000,], aes(x = area_lot, y = (num_tax_building))) +
+  geom_point() 
+# we need to filter the outlier of high area_lot but very low building structure value 
+p2016 <- filter(p2016, area_lot < 1e7)
+
+
+## Step 6: Remove NAs -------------------------------
+p2016 <- na.omit(p2016)
 
 ### PART 2 ALGORITHMS ###-------------------------
 
 ## Regressions ------------------------------------
 
-# simple regression
-hedonic <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
+# simple regression of building value
+hedonic_build <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
                 flag_tub_or_spa + area_lot + age + flag_fireplace, data = p2016)
-summary(hedonic)
+summary(hedonic_build)
 
-# lm with factors
-hedonic <- lm(num_tax_total ~ num_bathroom + num_bedroom + area_live_finished + 
+# simple regression of total value
+hedonic_total <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
+                flag_tub_or_spa + area_lot + age + flag_fireplace, data = p2016)
+summary(hedonic_total)
+
+# lm of building value with factors
+hedonic_total_fact <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
                 flag_tub_or_spa + area_lot + year_built + flag_fireplace + factor, data = p2016)
-summary(hedonic)
+summary(hedonic_total_fact)
 
+# lm of building value with factors
+hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
+                           flag_tub_or_spa + area_lot + year_built + flag_fireplace + factor, data = p2016)
+summary(hedonic_total_fact)
+
+## Advanced Algorithms --------------------------------
 # seperate training and testing data
 smp_size <- floor(0.75 * nrow(p2016)) ## 75% of the sample size
 
