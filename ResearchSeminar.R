@@ -94,7 +94,7 @@ barplot(sorted, cex.names = 0.5, las = 2)
 abline(v=35, col="red")
 
 #delete columns
-p2016 <- p2016[, which(colSums(is.na(p2016)/nrow(p2016)) < 0.2)]
+p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
 
 # select hedonics
 hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
@@ -110,6 +110,8 @@ p2016$flag_fireplace[p2016$flag_fireplace == 'true'] <- 1
 p2016$flag_fireplace[p2016$flag_fireplace != 'true'] <- 0
 p2016$flag_tub_or_spa <- as.numeric(p2016$flag_tub_or_spa)
 p2016$flag_fireplace <- as.numeric(p2016$flag_fireplace)
+
+
 
 # clean house prices
 hist(p2016$num_tax_total[p2016$num_tax_total < 1000000], breaks = 100)
