@@ -94,7 +94,13 @@ barplot(sorted, cex.names = 0.5, las = 2)
 abline(v=35, col="red")
 
 #delete columns
-p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
+#p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
+missing_values <- p2016 %>% summarize_each(funs(sum(is.na(.))/n()))
+missing_values <- gather(missing_values, key="feature", value="missing_pct")
+good_features <- filter(missing_values, missing_pct < 0.20)
+features <- good_features$feature
+p2016 <- p2016 %>% select(features)
+
 
 # select hedonics
 hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
