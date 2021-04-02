@@ -1,7 +1,7 @@
 # Rsearch Seminar: Real Estate  -------------------------------------------
 # Authors: Tim Graf, Kilian Gerding
 
-# Packages used -----------------------------------------------------------
+### Packages used -----------------------------------------------------------
 
 library(tidyverse)
 library(data.table)
@@ -14,16 +14,16 @@ library(spdep)
 
 rm(list=ls())
 
-# Read in Data ------------------------------------------------------------
+### Read in Data ------------------------------------------------------------
 
 # prices from Zillow transactions 2016 and 2017
 prices2016 <- read.csv('./Data/properties_2016.csv', sep = ',')
 prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
 id <- read.csv('./Info on Data/id.csv', sep = ',')
 
-# Data Inspection ---------------------------------------------------------
+### PART 1: DATA INSPECTION ---------------------------------------------------------
 
-# Step 0: Rename the Data
+## Step 0: Rename the Data
 
 p2016 <- prices2016 %>% rename(
   id_parcel = parcelid,
@@ -88,25 +88,19 @@ p2016 <- prices2016 %>% rename(
 
 colnames(id) <- c('type_zoning_landuse', 'factor')
 
-# Step 1: Eliminate columns with more than 20% NAs
+## Step 1: Eliminate columns with more than 20% NAs -------------------
 
-# # quick plot
-# count_nas <- colSums(is.na(p2016))/nrow(p2016)
-# sorted <- rev(sort(count_nas))
-# barplot(sorted, cex.names = 0.5, las = 2)
-# abline(v=35, col="red")
+# quick plot
+count_nas <- colSums(is.na(p2016))/nrow(p2016)
+sorted <- rev(sort(count_nas))
+barplot(sorted, cex.names = 0.5, las = 2)
+abline(v=35, col="red")
 
 #delete columns
 p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
 
 
-#missing_values <- p2016 %>% summarize_each(funs(sum(is.na(.))/n()))
-#missing_values <- gather(missing_values, key="feature", value="missing_pct")
-#good_features <- filter(missing_values, missing_pct < 0.20)
-#features <- good_features$feature
-#p2016 <- p2016 %>% select(features)
-
-
+## Step 2: Eliminate columns manually which are representing very similar values -------------------
 
 # select hedonics
 hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
@@ -115,6 +109,8 @@ hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
               'num_tax_total', 'num_tax_land')
 p2016 <- p2016 %>% select(hedonics)
 
+## Step 3: Transform data -------------------
+
 # transform dummies and factors
 p2016$flag_tub_or_spa[p2016$flag_tub_or_spa == 'true'] <- 1
 p2016$flag_tub_or_spa[p2016$flag_tub_or_spa != '1'] <- 0
@@ -122,51 +118,62 @@ p2016$flag_fireplace[p2016$flag_fireplace == 'true'] <- 1
 p2016$flag_fireplace[p2016$flag_fireplace != '1'] <- 0
 p2016$flag_tub_or_spa <- as.numeric(as.character(p2016$flag_tub_or_spa))
 p2016$flag_fireplace <- as.numeric(as.character(p2016$flag_fireplace))
+p2016$age <- 2021 - p2016$year_built
 
 # type id as factor
 p2016 <- left_join(p2016, id, by = 'type_zoning_landuse')
 p2016 <- p2016[ , -which(names(p2016) %in% c("type_zoning_landuse"))]
 p2016$factor <- as.factor(p2016$factor)
 
-# clean house prices
+# filter no baths and no bedrooms, we aim to separate properties with buildings and properties without buildings
+nobathsorbeds <- filter(p2016, num_bathroom == 0 & num_bedroom == 0)
+nrow(nobathsorbeds)/nrow(p2016)
+
+
+## Step 4: Elimante properties without buildings and very low values -------------------
+
+# drop no baths and no bedrooms
+p2016 <- filter(p2016, num_bathroom != 0 & num_bedroom != 0)
+
+# drop building values below 50'000
 hist(p2016$num_tax_building[p2016$num_tax_building < 500000], breaks = 100)
 p2016 <- p2016[p2016$num_tax_total >= 50000,]
+p2016 <- p2016[p2016$num_bedroom >= 0,]
+p2016 <- p2016[p2016$num_bathroom >= 0,]
 
+
+## Step 5: Plot the variable relationships -------------------------------
+# plot bedroom vs tax
+ggplot(data = p2016[1:100000,], aes(x = num_bedroom, y = log(num_tax_building))) +
+  geom_point()
+
+# plot bedroom vs tax
+ggplot(data = p2016[1:100000,], aes(x = num_bathroom, y = log(num_tax_building))) +
+  geom_point()
+
+# plot size vs tax
+ggplot(data = p2016[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
+  geom_point()
+
+# plot age vs tax
+ggplot(data = p2016[1:100000,], aes(x = age, y = (num_tax_building))) +
+  geom_point()
+
+
+### PART 2 ALGORITHMS ###-------------------------
+
+## Regressions ------------------------------------
 
 # simple regression
 hedonic <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + year_built + flag_fireplace, data = p2016)
+                flag_tub_or_spa + area_lot + age + flag_fireplace, data = p2016)
 summary(hedonic)
-
-#plot 
-ggplot(data = p2016[1:10000,], aes(x = num_bedroom, y = num_tax_total)) +
-  geom_point()
 
 # lm with factors
 hedonic <- lm(num_tax_total ~ num_bathroom + num_bedroom + area_live_finished + 
                 flag_tub_or_spa + area_lot + year_built + flag_fireplace + factor, data = p2016)
 summary(hedonic)
 
-# we do we get negative values in the regression?
-summary(p2016)
-hist(p2016$num_bathroom, breaks = 100) 
-hist(p2016$num_bedroom, breaks = 100)
-hist(p2016$area_lot, xlim = c(0,50000), breaks = 100000)
-
-# filter beds
-nobeds <- filter(p2016, num_bedroom == 0)
-nrow(nobeds)/nrow(p2016)
-summary(nobeds)
-# conclusion: low building structure values when we have no bedrooms, building could be a run-down home.
-
-# filter baths
-nobaths <- filter(p2016, num_bathroom == 0)
-nrow(nobaths)/nrow(p2016)
-summary(nobeds)
-# conclusion: low building structure values when we have no bathrooms, building could be a run-down home.
-
-
-### ALGORITHMS ###-------------------------
 # seperate training and testing data
 smp_size <- floor(0.75 * nrow(p2016)) ## 75% of the sample size
 
