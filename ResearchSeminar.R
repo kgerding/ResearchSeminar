@@ -19,6 +19,7 @@ library(spdep)
 # prices from Zillow transactions 2016 and 2017
 prices2016 <- read.csv('./Data/properties_2016.csv', sep = ',')
 prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
+id <- read.csv('./Info on Data/id.csv', sep = ',')
 
 # Data Inspection ---------------------------------------------------------
 
@@ -85,6 +86,8 @@ p2016 <- prices2016 %>% rename(
   type_architect = architecturalstyletypeid
 )
 
+colnames(id) <- c('type_zoning_landuse', 'factor')
+
 # Step 1: Eliminate columns with more than 20% NAs
 
 # quick plot
@@ -94,12 +97,15 @@ barplot(sorted, cex.names = 0.5, las = 2)
 abline(v=35, col="red")
 
 #delete columns
-#p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
-missing_values <- p2016 %>% summarize_each(funs(sum(is.na(.))/n()))
-missing_values <- gather(missing_values, key="feature", value="missing_pct")
-good_features <- filter(missing_values, missing_pct < 0.20)
-features <- good_features$feature
-p2016 <- p2016 %>% select(features)
+p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
+
+
+#missing_values <- p2016 %>% summarize_each(funs(sum(is.na(.))/n()))
+#missing_values <- gather(missing_values, key="feature", value="missing_pct")
+#good_features <- filter(missing_values, missing_pct < 0.20)
+#features <- good_features$feature
+#p2016 <- p2016 %>% select(features)
+
 
 
 # select hedonics
@@ -117,6 +123,10 @@ p2016$flag_fireplace[p2016$flag_fireplace != 'true'] <- 0
 p2016$flag_tub_or_spa <- as.numeric(p2016$flag_tub_or_spa)
 p2016$flag_fireplace <- as.numeric(p2016$flag_fireplace)
 
+# type id as factor
+p2016 <- left_join(p2016, id, by = 'type_zoning_landuse')
+p2016 <- p2016[ , -which(names(p2016) %in% c("type_zoning_landuse"))]
+p2016$factor <- as.factor(p2016$factor)
 
 
 # clean house prices
