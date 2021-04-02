@@ -10,6 +10,7 @@ library(TTR)
 library(PerformanceAnalytics)
 library(ggplot2)
 library(spdep)
+library(dplyr)
 
 
 rm(list=ls())
@@ -129,6 +130,13 @@ p2016$factor <- as.factor(p2016$factor)
 nobathsorbeds <- filter(p2016, num_bathroom == 0 & num_bedroom == 0)
 nrow(nobathsorbeds)/nrow(p2016)
 
+## Step 3.1: Adding new features -------------------
+# proportion of living area to area lot
+p2016$prop_living <- p2016$area_live_finished/p2016$area_lot
+
+# proportion of building to land value
+p2016$build_land_prop <- p2016$num_tax_building/p2016$num_tax_land
+
 
 ## Step 4: Elimante properties without buildings and very low values -------------------
 
@@ -180,34 +188,58 @@ p2016 <- na.omit(p2016)
 
 # simple regression of building value
 hedonic_build <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + age + flag_fireplace, data = p2016)
+                flag_tub_or_spa + area_lot + age + flag_fireplace + prop_living + build_land_prop, data = p2016)
 summary(hedonic_build)
 
 # simple regression of total value
 hedonic_total <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + age + flag_fireplace, data = p2016)
+                flag_tub_or_spa + area_lot + age + flag_fireplace + prop_living + build_land_prop, data = p2016)
 summary(hedonic_total)
 
 # lm of building value with factors
 hedonic_total_fact <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + year_built + flag_fireplace + factor, data = p2016)
+                flag_tub_or_spa + area_lot + year_built + flag_fireplace + prop_living + build_land_prop + factor, data = p2016)
 summary(hedonic_total_fact)
 
 # lm of building value with factors
 hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
-                           flag_tub_or_spa + area_lot + year_built + flag_fireplace + factor, data = p2016)
+                           flag_tub_or_spa + area_lot + year_built + flag_fireplace + prop_living + build_land_prop + factor, data = p2016)
 summary(hedonic_total_fact)
 
 ## Advanced Algorithms --------------------------------
-# seperate training and testing data
+library(xgboost)
+library(Matrix)
+
+# separate training and testing data
 smp_size <- floor(0.75 * nrow(p2016)) ## 75% of the sample size
 
 ## set the seed to make your partition reproducible
 set.seed(123)
 train_ind <- sample(seq_len(nrow(p2016)), size = smp_size)
 
-train16 <- p2016[train_ind, ]
+# featues we want to omit for the model 
+omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'year_built', 'num_tax_building', 'num_tax_land', 'factor')
+# note: Xgboost manages only numeric vectors.
+
+
+# split the data
+train16 <- p2016[train_ind,]
+train16 <- train16 %>% select(-omit)
+train16 <- as.matrix(train16)
+dtrain <- xgb.DMatrix(data = train16, label= train_labels)
+
 test16 <- p2016[-train_ind, ]
+test16 <- test16 %>% select(-omit)
+test16 <- as.matrix(test16)
+
+# convert categorical factor into one-hot encoding
+sparse_matrix <- sparse.model.matrix(num_tax_total~.-1, data = train16)
+head(sparse_matrix)
+
+output_vector = train16$num_tax_total
+
+bst <- xgboost(data = train16, label = output_vector, max.depth = 4,
+               eta = 1, nthread = 2, nrounds = 10,objective = "binary:logistic")
 
 
 
