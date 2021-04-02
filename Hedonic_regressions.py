@@ -18,16 +18,6 @@ print(path)
 ahs = pd.read_csv(
     path + "/AHS_Total.csv", index_col=0)
 
-
-# subsetting
-rent2015 = ahs[(ahs$RENT != -6 & ahs$Year == 2015),]
-rent2017 = ahs[(ahs$RENT != -6 & ahs$Year == 2017),]
-rent2019 = ahs[(ahs$RENT != -6 & ahs$Year == 2019),]
-   
-price2015 = ahs[(ahs$MARKETVAL != -6 & ahs$Year == 2015),]
-price2017 = ahs[(ahs$MARKETVAL != -6 & ahs$Year == 2017),]
-price2019 = ahs[(ahs$MARKETVAL != -6 & ahs$Year == 2019),]
-
 # create linear regression
 x = ahs.RATINGHS
 z = ahs.YRBUILT

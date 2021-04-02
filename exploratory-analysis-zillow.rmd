@@ -40,7 +40,7 @@ library(leaflet)
 library(lubridate)
 
 properties <- fread('../zillow_housing_data/properties_2016.csv')
-transactions <- fread('../zillow_housing_data/train_2016.csv')
+transactions <- fread('../zillow_housing_data/train_2016_v2.csv')
 sample_submission <- fread('../zillow_housing_data/sample_submission.csv')
 
 #install.packages('corrplot')
