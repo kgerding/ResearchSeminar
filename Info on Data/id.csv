@@ -1,0 +1,26 @@
+﻿PropertyLandUseTypeID,PropertyLandUseDesc
+31,Commercial/Office/Residential Mixed Used
+46,Multi-Story Store
+47,Store/Office (Mixed Use)
+246,"Duplex (2 Units, Any Combination)"
+247,"Triplex (3 Units, Any Combination)"
+248,"Quadruplex (4 Units, Any Combination)"
+260,Residential General
+261,Single Family Residential
+262,Rural Residence
+263,Mobile Home
+264,Townhouse
+265,Cluster Home
+266,Condominium
+267,Cooperative
+268,Row House
+269,Planned Unit Development
+270,Residential Common Area
+271,Timeshare
+273,Bungalow
+274,Zero Lot Line
+275,"Manufactured, Modular, Prefabricated Homes"
+276,Patio Home
+279,Inferred Single Family Residential
+290,Vacant Land - General
+291,Residential Vacant Land
