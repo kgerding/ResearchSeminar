@@ -226,7 +226,7 @@ omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county',
 train16 <- p2016[train_ind,]
 train16 <- train16 %>% select(-omit)
 train16 <- as.matrix(train16)
-dtrain <- xgb.DMatrix(data = train16, label= train_labels)
+dtrain <- xgb.DMatrix(data = train16, label= as.matrix(train16$num_tax_total))
 
 test16 <- p2016[-train_ind, ]
 test16 <- test16 %>% select(-omit)
@@ -241,6 +241,17 @@ output_vector = train16$num_tax_total
 bst <- xgboost(data = train16, label = output_vector, max.depth = 4,
                eta = 1, nthread = 2, nrounds = 10,objective = "binary:logistic")
 
+xgboost(data = train16, 
+        booster = "gbtree", 
+        objective = "binary:logistic", 
+        max.depth = 5, 
+        eta = 0.5, 
+        nthread = 2, 
+        nround = 2, 
+        min_child_weight = 1, 
+        subsample = 0.5, 
+        colsample_bytree = 1, 
+        num_parallel_tree = 1)
 
 
 
