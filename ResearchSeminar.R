@@ -1,7 +1,7 @@
-# Rsearch Seminar: Real Estate  -------------------------------------------
+# Rsearch Seminar: Real Estate  ------------------------------------------------
 # Authors: Tim Graf, Kilian Gerding
 
-### Packages used -----------------------------------------------------------
+### Packages used --------------------------------------------------------------
 
 library(tidyverse)
 library(data.table)
@@ -11,18 +11,25 @@ library(PerformanceAnalytics)
 library(ggplot2)
 library(spdep)
 library(dplyr)
+library(maptools)
+library(spatialreg)
+library(leaflet)
+library(leaflet.extras)
+library(rgdal)
+library(mapview)
+library(rgeos)
 
 
 rm(list=ls())
 
-### Read in Data ------------------------------------------------------------
+### Read in Data ---------------------------------------------------------------
 
 # prices from Zillow transactions 2016 and 2017
 prices2016 <- read.csv('./Data/properties_2016.csv', sep = ',')
 prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
 id <- read.csv('./Info on Data/id.csv', sep = ',')
 
-### PART 1: DATA INSPECTION ---------------------------------------------------------
+### PART 1: DATA INSPECTION ----------------------------------------------------
 
 ## Step 0: Rename the Data
 
@@ -89,28 +96,7 @@ p2016 <- prices2016 %>% rename(
 
 colnames(id) <- c('type_zoning_landuse', 'factor')
 
-## Step 1: Eliminate columns with more than 20% NAs -------------------
-
-# quick plot
-count_nas <- colSums(is.na(p2016))/nrow(p2016)
-sorted <- rev(sort(count_nas))
-barplot(sorted, cex.names = 0.5, las = 2)
-abline(v=35, col="red")
-
-#delete columns
-p2016 <- p2016[, colSums(is.na(p2016)/nrow(p2016)) < 0.2]
-
-
-## Step 2: Eliminate columns manually which are representing very similar values -------------------
-
-# select hedonics
-hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
-              'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot',
-              'type_zoning_landuse','loc_zip','loc_county', 'year_built', 'flag_fireplace', 'num_tax_building',
-              'num_tax_total', 'num_tax_land')
-p2016 <- p2016 %>% select(hedonics)
-
-## Step 3: Transform data -------------------
+## Step 1: Transform data ------------------------------------------------------
 
 # transform dummies and factors
 p2016$flag_tub_or_spa[p2016$flag_tub_or_spa == 'true'] <- 1
@@ -119,6 +105,8 @@ p2016$flag_fireplace[p2016$flag_fireplace == 'true'] <- 1
 p2016$flag_fireplace[p2016$flag_fireplace != '1'] <- 0
 p2016$flag_tub_or_spa <- as.numeric(as.character(p2016$flag_tub_or_spa))
 p2016$flag_fireplace <- as.numeric(as.character(p2016$flag_fireplace))
+
+# add age insted of year_built
 p2016$age <- 2021 - p2016$year_built
 
 # type id as factor
@@ -126,61 +114,89 @@ p2016 <- left_join(p2016, id, by = 'type_zoning_landuse')
 p2016 <- p2016[ , -which(names(p2016) %in% c("type_zoning_landuse"))]
 p2016$factor <- as.factor(p2016$factor)
 
-# filter no baths and no bedrooms, we aim to separate properties with buildings and properties without buildings
-nobathsorbeds <- filter(p2016, num_bathroom == 0 & num_bedroom == 0)
-nrow(nobathsorbeds)/nrow(p2016)
-
-## Step 3.1: Adding new features -------------------
 # proportion of living area to area lot
 p2016$prop_living <- p2016$area_live_finished/p2016$area_lot
 
 # proportion of building to land value
 p2016$build_land_prop <- p2016$num_tax_building/p2016$num_tax_land
 
+# filter no baths and no bedrooms, we aim to separate properties with buildings
+# and properties without buildings
+property_only16 <- p2016[(p2016$num_bathroom == 0 & p2016$num_bedroom == 0),]
+house_only16 <- p2016[(p2016$num_bathroom > 0 | p2016$num_bedroom > 0),]
 
-## Step 4: Elimante properties without buildings and very low values -------------------
+## Step 4: Eliminate columns with more than 20% NAs -------------------
 
-# drop no baths and no bedrooms
-p2016 <- filter(p2016, num_bathroom != 0 & num_bedroom != 0)
+# first remove NAs of most important columns to see an more workable data set
+# delete 7126 rows
+house_only16 <- house_only16[(na.omit(house_only16$num_bathroom) &
+                                na.omit(house_only16$num_bedroom) &
+                                na.omit(house_only16$num_tax_total) ), ]
+
+# quick plot
+count_nas <- colSums(is.na(house_only16))/nrow(house_only16)
+sorted <- rev(sort(count_nas))
+barplot(sorted, cex.names = 0.5, las = 2)
+abline(v=35, col="red")
+
+
+# define and select hedonics (<0.2 NAs or <0.4 NAs)
+hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
+              'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot',
+              'factor','loc_zip','loc_county', 'age',
+              'flag_fireplace', 'num_tax_building','num_tax_total',
+              'num_tax_land', 'prop_living', 'build_land_prop')
+
+hedonics2 <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
+              'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot',
+              'factor','loc_zip','loc_county', 'age',
+              'flag_fireplace', 'num_tax_building','num_tax_total',
+              'num_tax_land', 'num_unit', 'type_quality', 'type_heating',
+              'prop_living', 'build_land_prop')
+
+house_only16_mv <- house_only16 %>% select(hedonics2)
+house_only16 <- house_only16 %>% select(hedonics)
+
+# finally remove all NAs as not usefull for regression and ML
+house_only16 <- na.omit(house_only16)
+house_only16_mv <- na.omit(house_only16_mv)
+
+
+## Step 5: Eliminate properties without buildings and very low values ----------
 
 # drop building values below 50'000
-hist(p2016$num_tax_building[p2016$num_tax_building < 500000], breaks = 100)
-p2016 <- p2016[p2016$num_tax_total >= 50000,]
-p2016 <- p2016[p2016$num_bedroom >= 0,]
-p2016 <- p2016[p2016$num_bathroom >= 0,]
-
+hist(house_only16$num_tax_building[house_only16$num_tax_building < 500000],
+     breaks = 100)
+#house_only16 <- house_only16[house_only16$num_tax_total >= 50000,]
 
 ## Step 5: Plot the variable relationships and remove outliers -------------------------------
 # plot bedroom vs tax
-ggplot(data = p2016[1:100000,], aes(x = num_bedroom, y = log(num_tax_building))) +
+ggplot(data = house_only16[1:100000,], aes(x = num_bedroom, y = log(num_tax_building))) +
   geom_point()
 
 # plot bedroom vs tax
-ggplot(data = p2016[1:100000,], aes(x = num_bathroom, y = log(num_tax_building))) +
+ggplot(data = house_only16[1:100000,], aes(x = num_bathroom, y = log(num_tax_building))) +
   geom_point()
 
 # plot size vs tax
-ggplot(data = p2016[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
-  geom_point() 
+ggplot(data = house_only16[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
+  geom_point()
 # we need to filter the outlier of high area_live finished: 
-p2016 <- filter(p2016, area_live_finished < 58000)
+house_only16 <- filter(house_only16, area_live_finished < 58000)
 
-ggplot(data = p2016[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
+ggplot(data = house_only16[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
   geom_point() 
 
 # plot age vs tax
-ggplot(data = p2016[1:100000,], aes(x = age, y = (log(num_tax_building)))) +
+ggplot(data = house_only16[1:100000,], aes(x = age, y = (log(num_tax_building)))) +
   geom_point() 
 
 # plot area_lot vs tax
-ggplot(data = p2016[1:100000,], aes(x = area_lot, y = (num_tax_building))) +
+ggplot(data = house_only16[1:100000,], aes(x = area_lot, y = (num_tax_building))) +
   geom_point() 
 # we need to filter the outlier of high area_lot but very low building structure value 
-p2016 <- filter(p2016, area_lot < 1e7)
+house_only16 <- filter(house_only16, area_lot < 1e7)
 
-
-## Step 6: Remove NAs -------------------------------
-p2016 <- na.omit(p2016)
 
 ### PART 2 ALGORITHMS ###-------------------------
 
@@ -188,7 +204,11 @@ p2016 <- na.omit(p2016)
 
 # simple regression of building value
 hedonic_build <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + age + flag_fireplace + prop_living + build_land_prop, data = p2016)
+                flag_tub_or_spa + area_lot + age + flag_fireplace + prop_living + build_land_prop,
+                
+                data = house_only16
+                )
+
 summary(hedonic_build)
 
 # simple regression of total value
@@ -254,5 +274,81 @@ xgboost(data = train16,
         num_parallel_tree = 1)
 
 
+
+# Spatial Regression ------------------------------------------------------
+
+# Step 1: Visualisation
+
+# set longitude and latiude data right
+
+p2016$loc_latitude <- p2016$loc_latitude/1000000
+p2016$loc_longitude <- p2016$loc_longitude/1000000
+
+data <- p2016[2700000:2800000,]
+data <- na.omit(data)
+
+# create a new empty leaflet map
+map_US <- leaflet()
+
+# set the view on the map with the mean longitude and latitude, zoom in a bit
+map_US <- setView(map_US, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 3.5)
+
+# add the tile layer on top of the map
+map_US <- addTiles(map_US)
+
+# add coloring according to the rent/price quantile of the real estate and it to a new column in
+# the original data set
+forsale <- colorQuantile("Oranges", domain =  data$num_tax_total, n = 5)
+
+# new column
+data$colors_sale <- forsale(data$num_tax_total)
+
+# add markers with color coding
+map_US <- addCircleMarkers(map_US, lng = data$loc_longitude, lat = data$loc_latitude,
+                           radius = log(data$num_tax_total/500), stroke = F,
+                           fillOpacity = 0.95, fill = T,
+                           fillColor =  data$colors_sale)
+
+# add legends
+map_US <- addLegend(map_US, pal = forsale, values = data$num_tax_total, opacity = 0.8, title = "House Prices")
+
+# plot
+map_US
+
+#
+
+
+
+# read US map
+CA <- readShapePoly('/Users/kiliangerding/Downloads/CA_Counties/CA_Counties_TIGER2016.shp')
+plot(CA)
+
+# the map can be used to generate contiguity or k-nearest neighbor based weight matrices W.
+# The weight matrix in turn is an important input for spatial regression analysis
+# first the contiguity W. Seems to misbehave at the county borders
+contiguity <- tri2nb(coordinates(CA))
+plot(contiguity, coordinates(CA), col = 4, add = TRUE)
+# the six-nearest neighbor matrix looks better
+nearest.six <- knearneigh(coordinates(CA), k = 6, RANN = FALSE) 
+nearest.six2 <- knn2nb(nearest.six) # plotting of W require the object to be of class "nb". Therefore, class conversion from "knn" to "nb"
+plot(CA)
+plot(nearest.six2, coordinates(CA), col = 2, add = TRUE)
+
+
+m <- leaflet(data = CA)
+m <- setView(m, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 4)
+m <- addProviderTiles(m, providers$OpenTopoMap)
+m <- addPolygons(m, lng = data$loc_longitude, lat = data$loc_latitude, stroke = TRUE, weight = 1,
+                 highlightOptions = highlightOptions(color = "white", weight = 4, bringToFront = TRUE))
+m
+
+
+
+# regression models:
+# first try nonspatial OLS:
+fit.ols <- lm(hp/100000 ~ dlpop, data = dat1) 
+summary(fit.ols)
+# lin-log model: linear in lhs of equation, log on rhs: divide coefficient by 100 
+# a 1% increase in population growth is estimated to increase house prices on average by CHF 67439 
 
 
