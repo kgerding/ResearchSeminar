@@ -33,6 +33,8 @@ quality_id <- read.csv('./Info on Data/quality_id.csv', sep = ',')
 
 ### PART 1: DATA INSPECTION ----------------------------------------------------
 
+rm(list=setdiff(ls(), c("prices2016", "prices2017", "id", "heating_id", "quality_id")))
+
 ## Step 0: Rename the Data
 
 p2016 <- prices2016 %>% rename(
@@ -268,52 +270,159 @@ hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_
 summary(hedonic_total_fact_mv)
 
 ## Advanced Algorithms --------------------------------
+"note: Xgboost manages only numeric vectors.
+For many machine learning algorithms, using correlated features is not a good idea. 
+It may sometimes make prediction less accurate, and most of the time make interpretation of the model 
+almost impossible. GLM, for instance, assumes that the features are uncorrelated.
+
+Fortunately, decision tree algorithms (including boosted trees) are very robust to these features. 
+Therefore we have nothing to do to manage this situation.
+"
+
 library(xgboost)
 library(Matrix)
 
-prep_xgboost <- function (data){
-  ## set the seed to make your partition reproducible
+
+# convert to numeric, as xgboost only handles numeric values
+house_only16_mv$area_live_finished <- as.numeric(house_only16_mv$area_live_finished)
+house_only16_mv$num_unit <- as.numeric(house_only16_mv$num_unit)
+
+house_only16$area_live_finished <- as.numeric(house_only16$area_live_finished)
+
+# select the dataframe
+data = na.omit(house_only16_mv)
+  
+  ##set the seed to make your partition reproducible
   set.seed(123)
   smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
   train_ind <- sample(seq_len(nrow(data)), size = smp_size)
   
-  # featues we want to omit for the model 
-  omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor')
-  # note: Xgboost manages only numeric vectors.
-  
+  # features we want to omit for the model 
+  omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_total', 'num_tax_land', 'factor')
+
   # Split the data into train and test
   train16 <- data[train_ind,]
-  train16 <- train16 %>% select(-omit)
-  train16 <- as.matrix(train16)
-  dtrain <- xgb.DMatrix(data = train16, label= as.matrix(train16$num_tax_total))
-  
   test16 <- data[-train_ind, ]
-  test16 <- test16 %>% select(-omit)
-  test16 <- as.matrix(test16)
   
-  # convert categorical factor into one-hot encoding
-  sparse_matrix <- sparse.model.matrix(num_tax_total~.-1, data = data)
-
   # define training label = dependent variable
-  output_vector = as.matrix(trial1$num_tax_total)
-}
+  output_vector = as.matrix(train16[,'num_tax_total'])
+  test_vector = as.matrix(test16[,'num_tax_total'])
+  
+  #omit variables and convert to numeric again
+  train16 <- train16 %>% select(-omit)
+  train16 <- (as.matrix(sapply(train16, as.numeric)))
+  test16 <- test16 %>% select(-omit)
+  test16 <- (as.matrix(sapply(test16, as.numeric)))
+  
+  # convert categorical factor into dummy variables using one-hot encoding
+  sparse_matrix_train <- sparse.model.matrix(num_tax_total~.-1, data = train16)
+  sparse_matrix_test <- sparse.model.matrix(num_tax_total~.-1, data = test16)
+  
+  
+  # check the dimnames crated by the one-hot encoding
+  sparse_matrix@Dimnames[[2]]
+  
+  # they should both be of equal length
+  nrow(sparse_matrix) 
+  nrow(output_vector)
+  
+  # Create a dense matrix
+  dtrain <- xgb.DMatrix(data = sparse_matrix, label = output_vector)
+  dtest <- xgb.DMatrix(data = test16, label=test_vector)
+  
+  
+### XGBOOST - training ###  -----------------------------
+"about the parameters: 
+  - eta: Low eta value means model is more robust to overfitting.
+  - gamma: minimum loss reduction required to make a further partition on a leaf node of the tree"
+
+# model 1 (with dense matrix) - xg boosting trees  -----------------------------
+model_xgb1 <- xgboost(data = dtrain, 
+                      max_depth = 5, 
+                      eta = 1, 
+                      nthread = 8, 
+                      nrounds = 20, 
+                      gamma = 0,
+                      objective = "reg:squarederror",
+                      early_stopping_rounds = 5, # stop if we don't see much improvement
+                      verbose = 2)
 
 
+pred <- predict(model_xgb1, test16)
+rmse <- sqrt(mean(pred-test_vector)^2)
+print(rmse)
+print(head(pred))
+print(head(test_vector))
 
-bst <- xgboost(data = sparse_matrix, booster = "gbtree", label = output_vector, max.depth = 4,
-               eta = 1, nthread = 2, nrounds = 10, objective = "reg:linear")
+# save model to local file
+xgb.save(model_xgb1, "xgboost.model1")
 
-xgboost(data = train16, 
-        booster = "gbtree", 
-        objective = "binary:logistic", 
-        max.depth = 5, 
-        eta = 0.5, 
-        nthread = 2, 
-        nround = 2, 
-        min_child_weight = 1, 
-        subsample = 0.5, 
-        colsample_bytree = 1, 
-        num_parallel_tree = 1)
+# # load xgboosting model
+# bst2 <- xgb.load("xgboost.model")
+
+# plot the most important leaflets
+xgb.plot.multi.trees(feature_names = names(dtrain), 
+                     model = model_xgb1)
+
+# Plot importance
+importance <- xgb.importance(feature_names = names(dtrain), model = model_xgb1)
+xgb.plot.importance(importance_matrix = importance)
+
+
+# testing whether the results make sense 
+test <- chisq.test(data.frame(unlist(train16))$area_live_finished, output_vector)
+print(test)
+
+# model 2 (without dense matrix) - xg boosting trees -----------------------------
+model_xgb2 <- xgboost(data = sparse_matrix, 
+                      booster = "gbtree", 
+                      label = output_vector,
+                      max.depth = 4, # the depth of the trees
+                      eta = 1, 
+                      gamma = 0,
+                      nthread = 8, # number of cpu threads
+                      nrounds = 10, 
+                      objective = "reg:squarederror",
+                      verbose = 2) # see the training progress
+
+# Plot importance
+importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = model_xgb2)
+xgb.plot.importance(importance_matrix = importance)
+
+
+# model 3 (measure learning progress with xgb.train) - xg boosting trees  -----------------------------
+watchlist <- list(train=dtrain, test=dtest)
+
+model_xgb3 <- xgb.train(data=dtrain, 
+                 max_depth=5, 
+                 eta=1, 
+                 nthread = 4, 
+                 nrounds=10, 
+                 watchlist=watchlist, 
+                 eval_metric = 'rmse',
+                 objective = "reg:squarederror",
+                 verbose = 2)
+
+# Plot importance
+importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = model_xg3)
+xgb.plot.importance(importance_matrix = importance, top_n = 15)
+
+#xgb.plot.deepness(model = model_xgb3, 
+#                  which = c("2x1", "max.depth", "med.depth", "med.weight"))
+
+# model 4 - linear boosting
+"Note that linear boosting is great to capture linear relationships while trees are better at
+capturing non-linear relationship"
+model_xgb4 <- xgb.train(data=dtrain, 
+                        booster = "gblinear",
+                        max_depth=5,
+                        nthread = 4, 
+                        nrounds=10,
+                        watchlist=watchlist, 
+                        eval_metric = "rmse",
+                        objective = "reg:squarederror",
+                        verbose = 2)
+
 
 
 
