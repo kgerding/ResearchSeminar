@@ -28,6 +28,8 @@ rm(list=ls())
 prices2016 <- read.csv('./Data/properties_2016.csv', sep = ',')
 prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
 id <- read.csv('./Info on Data/id.csv', sep = ',')
+heating_id <- read.csv('./Info on Data/heating_id.csv', sep = ',')
+quality_id <- read.csv('./Info on Data/quality_id.csv', sep = ',')
 
 ### PART 1: DATA INSPECTION ----------------------------------------------------
 
@@ -95,6 +97,8 @@ p2016 <- prices2016 %>% rename(
 )
 
 colnames(id) <- c('type_zoning_landuse', 'factor')
+colnames(heating_id) <- c('type_heating', 'heating_factor')
+colnames(quality_id) <- c('type_quality', 'quality_factor')
 
 ## Step 1: Transform data ------------------------------------------------------
 
@@ -113,6 +117,16 @@ p2016$age <- 2021 - p2016$year_built
 p2016 <- left_join(p2016, id, by = 'type_zoning_landuse')
 p2016 <- p2016[ , -which(names(p2016) %in% c("type_zoning_landuse"))]
 p2016$factor <- as.factor(p2016$factor)
+
+# heating id as factor
+p2016 <- left_join(p2016, heating_id, by = 'type_heating')
+p2016 <- p2016[ , -which(names(p2016) %in% c("type_heating"))]
+p2016$heating_factor <- as.factor(p2016$heating_factor)
+
+# type id as factor
+p2016 <- left_join(p2016, quality_id, by = 'type_quality')
+p2016 <- p2016[ , -which(names(p2016) %in% c("type_quality"))]
+p2016$quality_factor <- as.factor(p2016$quality_factor)
 
 # proportion of living area to area lot
 p2016$prop_living <- p2016$area_live_finished/p2016$area_lot
@@ -151,7 +165,7 @@ hedonics2 <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
               'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot',
               'factor','loc_zip','loc_county', 'age',
               'flag_fireplace', 'num_tax_building','num_tax_total',
-              'num_tax_land', 'num_unit', 'type_quality', 'type_heating',
+              'num_tax_land', 'num_unit', 'quality_factor', 'heating_factor',
               'prop_living', 'build_land_prop')
 
 house_only16_mv <- house_only16 %>% select(hedonics2)
@@ -326,20 +340,20 @@ xgboost(data = train16,
 
 # set longitude and latiude data right
 
-p2016$loc_latitude <- p2016$loc_latitude/1000000
-p2016$loc_longitude <- p2016$loc_longitude/1000000
+house_only16$loc_latitude <- house_only16$loc_latitude/1000000
+house_only16$loc_longitude <- house_only16$loc_longitude/1000000
 
-data <- p2016[2700000:2800000,]
+data <- house_only16[1:1000,]
 data <- na.omit(data)
 
 # create a new empty leaflet map
-map_US <- leaflet()
+map_CA <- leaflet()
 
 # set the view on the map with the mean longitude and latitude, zoom in a bit
-map_US <- setView(map_US, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 3.5)
+map_CA <- setView(map_CA, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 9)
 
 # add the tile layer on top of the map
-map_US <- addTiles(map_US)
+map_CA <- addTiles(map_CA)
 
 # add coloring according to the rent/price quantile of the real estate and it to a new column in
 # the original data set
@@ -349,23 +363,20 @@ forsale <- colorQuantile("Oranges", domain =  data$num_tax_total, n = 5)
 data$colors_sale <- forsale(data$num_tax_total)
 
 # add markers with color coding
-map_US <- addCircleMarkers(map_US, lng = data$loc_longitude, lat = data$loc_latitude,
+map_CA <- addCircleMarkers(map_CA, lng = data$loc_longitude, lat = data$loc_latitude,
                            radius = log(data$num_tax_total/500), stroke = F,
                            fillOpacity = 0.95, fill = T,
                            fillColor =  data$colors_sale)
 
 # add legends
-map_US <- addLegend(map_US, pal = forsale, values = data$num_tax_total, opacity = 0.8, title = "House Prices")
+map_CA <- addLegend(map_CA, pal = forsale, values = data$num_tax_total, opacity = 0.8, title = "House Prices")
 
 # plot
-map_US
-
-#
+map_CA
 
 
-
-# read US map
-CA <- readShapePoly('/Users/kiliangerding/Downloads/CA_Counties/CA_Counties_TIGER2016.shp')
+# read CA map
+CA <- readShapePoly('/Users/kiliangerding/Downloads/County_Boundary/County_Boundary.shp')
 plot(CA)
 
 # the map can be used to generate contiguity or k-nearest neighbor based weight matrices W.
