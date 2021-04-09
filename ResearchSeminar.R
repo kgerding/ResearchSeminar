@@ -226,13 +226,6 @@ hedonic_build <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_li
 
 summary(hedonic_build)
 
-hedonic_build2 <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
-                      flag_tub_or_spa + area_lot + age + flag_fireplace + num_unit +
-                       type_quality + type_heating #+ prop_living + build_land_prop
-                    ,data = house_only16_mv)
-
-summary(hedonic_build2)
-
 # simple regression of total value
 hedonic_total <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
                 flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
@@ -241,13 +234,6 @@ hedonic_total <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_
 
 summary(hedonic_total)
 
-hedonic_total2 <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
-                      flag_tub_or_spa + area_lot + age + flag_fireplace + num_unit +
-                       type_quality + type_heating #+ prop_living + build_land_prop
-                     ,
-                    data = house_only16_mv)
-
-summary(hedonic_total2)
 
 # lm of building value with factors
 hedonic_total_fact <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
@@ -260,7 +246,7 @@ summary(hedonic_total_fact)
 
 hedonic_total_fact2 <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
                            flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
-                         + factor + num_unit + type_quality + type_heating
+                         + factor + num_unit + quality_factor + heating_factor
                          , 
                          data = house_only16_mv)
 
@@ -276,7 +262,7 @@ summary(hedonic_total_fact)
 
 hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
                            flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
-                         + factor + num_unit + type_quality + type_heating
+                         + factor + num_unit + quality_factor + heating_factor
                          , data = house_only16_mv)
 
 summary(hedonic_total_fact_mv)
