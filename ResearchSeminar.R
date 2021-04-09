@@ -28,6 +28,8 @@ rm(list=ls())
 prices2016 <- read.csv('./Data/properties_2016.csv', sep = ',')
 prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
 id <- read.csv('./Info on Data/id.csv', sep = ',')
+heating_id <- read.csv('./Info on Data/heating_id.csv', sep = ',')
+quality_id <- read.csv('./Info on Data/quality_id.csv', sep = ',')
 
 ### PART 1: DATA INSPECTION ----------------------------------------------------
 
@@ -95,6 +97,8 @@ p2016 <- prices2016 %>% rename(
 )
 
 colnames(id) <- c('type_zoning_landuse', 'factor')
+colnames(heating_id) <- c('type_heating', 'heating_factor')
+colnames(quality_id) <- c('type_quality', 'quality_factor')
 
 ## Step 1: Transform data ------------------------------------------------------
 
@@ -113,6 +117,16 @@ p2016$age <- 2021 - p2016$year_built
 p2016 <- left_join(p2016, id, by = 'type_zoning_landuse')
 p2016 <- p2016[ , -which(names(p2016) %in% c("type_zoning_landuse"))]
 p2016$factor <- as.factor(p2016$factor)
+
+# heating id as factor
+p2016 <- left_join(p2016, heating_id, by = 'type_heating')
+p2016 <- p2016[ , -which(names(p2016) %in% c("type_heating"))]
+p2016$heating_factor <- as.factor(p2016$heating_factor)
+
+# type id as factor
+p2016 <- left_join(p2016, quality_id, by = 'type_quality')
+p2016 <- p2016[ , -which(names(p2016) %in% c("type_quality"))]
+p2016$quality_factor <- as.factor(p2016$quality_factor)
 
 # proportion of living area to area lot
 p2016$prop_living <- p2016$area_live_finished/p2016$area_lot
@@ -151,15 +165,15 @@ hedonics2 <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
               'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot',
               'factor','loc_zip','loc_county', 'age',
               'flag_fireplace', 'num_tax_building','num_tax_total',
-              'num_tax_land', 'num_unit', 'type_quality', 'type_heating',
+              'num_tax_land', 'num_unit', 'quality_factor', 'heating_factor',
               'prop_living', 'build_land_prop')
 
 house_only16_mv <- house_only16 %>% select(hedonics2)
 house_only16 <- house_only16 %>% select(hedonics)
 
 # finally remove all NAs as not usefull for regression and ML
-house_only16 <- na.omit(house_only16)
-house_only16_mv <- na.omit(house_only16_mv)
+#house_only16 <- na.omit(house_only16)
+#house_only16_mv <- na.omit(house_only16_mv)
 
 
 ## Step 5: Eliminate properties without buildings and very low values ----------
@@ -167,7 +181,8 @@ house_only16_mv <- na.omit(house_only16_mv)
 # drop building values below 50'000
 hist(house_only16$num_tax_building[house_only16$num_tax_building < 500000],
      breaks = 100)
-#house_only16 <- house_only16[house_only16$num_tax_total >= 50000,]
+
+house_only16 <- house_only16[house_only16$num_tax_total >= 50000,]
 
 ## Step 5: Plot the variable relationships and remove outliers -------------------------------
 # plot bedroom vs tax
@@ -181,8 +196,9 @@ ggplot(data = house_only16[1:100000,], aes(x = num_bathroom, y = log(num_tax_bui
 # plot size vs tax
 ggplot(data = house_only16[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
   geom_point()
+
 # we need to filter the outlier of high area_live finished: 
-house_only16 <- filter(house_only16, area_live_finished < 58000)
+house_only16 <- house_only16[house_only16$area_live_finished < 58000,]
 
 ggplot(data = house_only16[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
   geom_point() 
@@ -194,8 +210,9 @@ ggplot(data = house_only16[1:100000,], aes(x = age, y = (log(num_tax_building)))
 # plot area_lot vs tax
 ggplot(data = house_only16[1:100000,], aes(x = area_lot, y = (num_tax_building))) +
   geom_point() 
+
 # we need to filter the outlier of high area_lot but very low building structure value 
-house_only16 <- filter(house_only16, area_lot < 1e7)
+house_only16 <- house_only16[house_only16$area_lot < 1e7,]
 
 
 ### PART 2 ALGORITHMS ###---------------------------------------------------
@@ -204,27 +221,51 @@ house_only16 <- filter(house_only16, area_lot < 1e7)
 
 # simple regression of building value
 hedonic_build <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + age + flag_fireplace + prop_living + build_land_prop,
-                
-                data = house_only16
-                )
+                flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                ,data = house_only16)
 
 summary(hedonic_build)
 
 # simple regression of total value
 hedonic_total <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + age + flag_fireplace + prop_living + build_land_prop, data = p2016)
+                flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                ,
+                data = house_only16)
+
 summary(hedonic_total)
+
 
 # lm of building value with factors
 hedonic_total_fact <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + year_built + flag_fireplace + prop_living + build_land_prop + factor, data = p2016)
+                flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                + factor
+                , 
+                data = house_only16)
+
 summary(hedonic_total_fact)
+
+hedonic_total_fact2 <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
+                           flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                         + factor + num_unit + quality_factor + heating_factor
+                         , 
+                         data = house_only16_mv)
+
+summary(hedonic_total_fact2)
 
 # lm of building value with factors
 hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
-                           flag_tub_or_spa + area_lot + year_built + flag_fireplace + prop_living + build_land_prop + factor, data = p2016)
+                           flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                         + factor
+                         , data = house_only16)
+
 summary(hedonic_total_fact)
+
+hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
+                           flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                         + factor + num_unit + quality_factor + heating_factor
+                         , data = house_only16_mv)
+
+summary(hedonic_total_fact_mv)
 
 ## Advanced Algorithms --------------------------------
 library(xgboost)
@@ -282,20 +323,20 @@ xgboost(data = train16,
 
 # set longitude and latiude data right
 
-p2016$loc_latitude <- p2016$loc_latitude/1000000
-p2016$loc_longitude <- p2016$loc_longitude/1000000
+house_only16$loc_latitude <- house_only16$loc_latitude/1000000
+house_only16$loc_longitude <- house_only16$loc_longitude/1000000
 
-data <- p2016[2700000:2800000,]
+data <- house_only16[1:1000,]
 data <- na.omit(data)
 
 # create a new empty leaflet map
-map_US <- leaflet()
+map_CA <- leaflet()
 
 # set the view on the map with the mean longitude and latitude, zoom in a bit
-map_US <- setView(map_US, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 3.5)
+map_CA <- setView(map_CA, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 9)
 
 # add the tile layer on top of the map
-map_US <- addTiles(map_US)
+map_CA <- addTiles(map_CA)
 
 # add coloring according to the rent/price quantile of the real estate and it to a new column in
 # the original data set
@@ -305,23 +346,20 @@ forsale <- colorQuantile("Oranges", domain =  data$num_tax_total, n = 5)
 data$colors_sale <- forsale(data$num_tax_total)
 
 # add markers with color coding
-map_US <- addCircleMarkers(map_US, lng = data$loc_longitude, lat = data$loc_latitude,
+map_CA <- addCircleMarkers(map_CA, lng = data$loc_longitude, lat = data$loc_latitude,
                            radius = log(data$num_tax_total/500), stroke = F,
                            fillOpacity = 0.95, fill = T,
                            fillColor =  data$colors_sale)
 
 # add legends
-map_US <- addLegend(map_US, pal = forsale, values = data$num_tax_total, opacity = 0.8, title = "House Prices")
+map_CA <- addLegend(map_CA, pal = forsale, values = data$num_tax_total, opacity = 0.8, title = "House Prices")
 
 # plot
-map_US
-
-#
+map_CA
 
 
-
-# read US map
-CA <- readShapePoly('/Users/kiliangerding/Downloads/CA_Counties/CA_Counties_TIGER2016.shp')
+# read CA map
+CA <- readShapePoly('/Users/kiliangerding/Downloads/County_Boundary/County_Boundary.shp')
 plot(CA)
 
 # the map can be used to generate contiguity or k-nearest neighbor based weight matrices W.

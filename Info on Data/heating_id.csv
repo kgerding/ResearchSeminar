@@ -1,0 +1,26 @@
+﻿HeatingOrSystemTypeID,HeatingOrSystemDesc
+1,Baseboard
+2,Central
+3,Coal
+4,Convection
+5,Electric
+6,Forced air
+7,Floor/Wall
+8,Gas
+9,Geo Thermal
+10,Gravity
+11,Heat Pump
+12,Hot Water
+13,None
+14,Other
+15,Oil
+16,Partial
+17,Propane
+18,Radiant
+19,Steam
+20,Solar
+21,Space/Suspended
+22,Vent
+23,Wood Burning
+24,Yes
+25,Zone
