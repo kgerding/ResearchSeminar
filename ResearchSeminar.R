@@ -158,8 +158,8 @@ house_only16_mv <- house_only16 %>% select(hedonics2)
 house_only16 <- house_only16 %>% select(hedonics)
 
 # finally remove all NAs as not usefull for regression and ML
-house_only16 <- na.omit(house_only16)
-house_only16_mv <- na.omit(house_only16_mv)
+#house_only16 <- na.omit(house_only16)
+#house_only16_mv <- na.omit(house_only16_mv)
 
 
 ## Step 5: Eliminate properties without buildings and very low values ----------
@@ -167,7 +167,8 @@ house_only16_mv <- na.omit(house_only16_mv)
 # drop building values below 50'000
 hist(house_only16$num_tax_building[house_only16$num_tax_building < 500000],
      breaks = 100)
-#house_only16 <- house_only16[house_only16$num_tax_total >= 50000,]
+
+house_only16 <- house_only16[house_only16$num_tax_total >= 50000,]
 
 ## Step 5: Plot the variable relationships and remove outliers -------------------------------
 # plot bedroom vs tax
@@ -181,8 +182,9 @@ ggplot(data = house_only16[1:100000,], aes(x = num_bathroom, y = log(num_tax_bui
 # plot size vs tax
 ggplot(data = house_only16[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
   geom_point()
+
 # we need to filter the outlier of high area_live finished: 
-house_only16 <- filter(house_only16, area_live_finished < 58000)
+house_only16 <- house_only16[house_only16$area_live_finished < 58000,]
 
 ggplot(data = house_only16[1:100000,], aes(x = area_live_finished, y = (num_tax_building))) +
   geom_point() 
@@ -194,8 +196,9 @@ ggplot(data = house_only16[1:100000,], aes(x = age, y = (log(num_tax_building)))
 # plot area_lot vs tax
 ggplot(data = house_only16[1:100000,], aes(x = area_lot, y = (num_tax_building))) +
   geom_point() 
+
 # we need to filter the outlier of high area_lot but very low building structure value 
-house_only16 <- filter(house_only16, area_lot < 1e7)
+house_only16 <- house_only16[house_only16$area_lot < 1e7,]
 
 
 ### PART 2 ALGORITHMS ###-------------------------
@@ -204,31 +207,73 @@ house_only16 <- filter(house_only16, area_lot < 1e7)
 
 # simple regression of building value
 hedonic_build <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + age + flag_fireplace + prop_living + build_land_prop,
-                
-                data = house_only16
-                )
+                flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                ,data = house_only16)
 
 summary(hedonic_build)
 
+hedonic_build2 <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
+                      flag_tub_or_spa + area_lot + age + flag_fireplace + num_unit +
+                       type_quality + type_heating #+ prop_living + build_land_prop
+                    ,data = house_only16_mv)
+
+summary(hedonic_build2)
+
 # simple regression of total value
 hedonic_total <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + age + flag_fireplace + prop_living + build_land_prop, data = p2016)
+                flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                ,
+                data = house_only16)
+
 summary(hedonic_total)
+
+hedonic_total2 <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
+                      flag_tub_or_spa + area_lot + age + flag_fireplace + num_unit +
+                       type_quality + type_heating #+ prop_living + build_land_prop
+                     ,
+                    data = house_only16_mv)
+
+summary(hedonic_total2)
 
 # lm of building value with factors
 hedonic_total_fact <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
-                flag_tub_or_spa + area_lot + year_built + flag_fireplace + prop_living + build_land_prop + factor, data = p2016)
+                flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                + factor
+                , 
+                data = house_only16)
+
 summary(hedonic_total_fact)
+
+hedonic_total_fact2 <- lm(log(num_tax_building) ~ num_bathroom + num_bedroom + area_live_finished + 
+                           flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                         + factor + num_unit + type_quality + type_heating
+                         , 
+                         data = house_only16_mv)
+
+summary(hedonic_total_fact2)
 
 # lm of building value with factors
 hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
-                           flag_tub_or_spa + area_lot + year_built + flag_fireplace + prop_living + build_land_prop + factor, data = p2016)
+                           flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                         + factor
+                         , data = house_only16)
+
 summary(hedonic_total_fact)
+
+hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_live_finished + 
+                           flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+                         + factor + num_unit + type_quality + type_heating
+                         , data = house_only16_mv)
+
+summary(hedonic_total_fact_mv)
 
 ## Advanced Algorithms --------------------------------
 library(xgboost)
 library(Matrix)
+
+
+# new data is house_only16
+# or house_only16_mv for more variables
 
 # separate training and testing data
 smp_size <- floor(0.75 * nrow(p2016)) ## 75% of the sample size
