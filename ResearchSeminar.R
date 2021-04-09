@@ -324,13 +324,16 @@ xgboost(data = train16,
 
 # Step 1: Visualisation
 
+
+# new df
+data <- na.omit(house_only16)
+
 # set longitude and latiude data right
+data$loc_latitude <- data$loc_latitude/1000000
+data$loc_longitude <- data$loc_longitude/1000000
 
-house_only16$loc_latitude <- house_only16$loc_latitude/1000000
-house_only16$loc_longitude <- house_only16$loc_longitude/1000000
-
-data <- house_only16[1:1000,]
-data <- na.omit(data)
+# subset if wanted
+#data <- data[1:1000,]
 
 # create a new empty leaflet map
 map_CA <- leaflet()
@@ -360,9 +363,10 @@ map_CA <- addLegend(map_CA, pal = forsale, values = data$num_tax_total, opacity 
 # plot
 map_CA
 
+# Step 2 : Weight Matrix
 
 # read CA map
-CA <- readShapePoly('/Users/kiliangerding/Downloads/County_Boundary/County_Boundary.shp')
+CA <- readShapePoly('/Users/kiliangerding/Downloads/LA_County_City_Boundaries/LA_County_City_Boundaries.shp')
 plot(CA)
 
 # the map can be used to generate contiguity or k-nearest neighbor based weight matrices W.
@@ -377,20 +381,51 @@ plot(CA)
 plot(nearest.six2, coordinates(CA), col = 2, add = TRUE)
 
 
-m <- leaflet(data = CA)
-m <- setView(m, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 4)
-m <- addProviderTiles(m, providers$OpenTopoMap)
-m <- addPolygons(m, lng = data$loc_longitude, lat = data$loc_latitude, stroke = TRUE, weight = 1,
-                 highlightOptions = highlightOptions(color = "white", weight = 4, bringToFront = TRUE))
-m
+#m <- leaflet(data = CA)
+#m <- setView(m, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 4)
+#m <- addProviderTiles(m, providers$OpenTopoMap)
+#m <- addPolygons(m, lng = data$loc_longitude, lat = data$loc_latitude, stroke = TRUE, weight = 1,
+#                 highlightOptions = highlightOptions(color = "white", weight = 4, bringToFront = TRUE))
+#m
 
 
+# The SAR Model:----------------------------------------
 
-# regression models:
-# first try nonspatial OLS:
-fit.ols <- lm(hp/100000 ~ dlpop, data = dat1) 
-summary(fit.ols)
-# lin-log model: linear in lhs of equation, log on rhs: divide coefficient by 100 
-# a 1% increase in population growth is estimated to increase house prices on average by CHF 67439 
+LA <- read_sf("/Users/kiliangerding/Downloads/LA_County_City_Boundaries/LA_County_City_Boundaries.shp")
 
+pnts <- data[, c('loc_latitude', 'loc_longitude')]
+pnts_sf <- st_as_sf(pnts , coords = c('loc_latitude', 'loc_longitude'), crs = st_crs(LA))
+
+pnts <- pnts_sf %>% mutate(
+  intersection = as.integer(st_intersects(geometry, LA))
+  , area = if_else(is.na(intersection), '', LA$CITY_NAME[intersection])
+) 
+
+pnts
+
+# estimation of the spatial regression model by maximum likelihood:
+coords <- coordinates(data[, c('loc_latitude', 'loc_longitude')])
+
+k6 <- knn2nb(knearneigh(coords, k = 6))
+plot(knn6, coords, pch = 19, cex = 0.6, add = TRUE, col = 'red')
+
+#k6dists <- unlist(nbdists(k6, coords, longlat = TRUE))
+#summary(k1dists)
+
+
+##
+W <- nb2mat(nearest.six2)
+
+# variables are in matrix form because we need matrix algebra:
+Y <- as.matrix(house_only16$num_tax_building)
+colnames(Y) <- "HP"
+X <- cbind(1,house_only16$age)
+colnames(X) <- c("intercept","age")
+
+# the lagsarlm() command in the spedep package requires the weight matrix to be a listw object
+W.listw <- nb2listw(nearest.six2)
+
+fit.sar <- lagsarlm(log(num_tax_building) ~ age, W.listw, data = house_only16, method="eigen", quiet = TRUE)
+
+summary(fit.sar) # same coefficient than what we get using ML "by hand" (see fit2)
 
