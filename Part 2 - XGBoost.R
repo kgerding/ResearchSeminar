@@ -18,7 +18,7 @@ library(parallel)
 library(parallelMap) 
 library(randomForest)
 
-#rm(list=ls())
+rm(list=ls())
 
 house_only16_mv <- fread('./Data/house_only16_mv.csv', drop = 'V1')
 
@@ -59,15 +59,6 @@ str(house_only16_mv)
 
 
 ### PART 1: DATA PREPROCESSING ###--------------------------------------
-
-str(house_only16_mv)
-
-
-# convert to numeric, as xgboost only handles numeric values
-house_only16_mv$area_live_finished <- as.numeric(house_only16_mv$area_live_finished)
-house_only16_mv$num_unit <- as.numeric(house_only16_mv$num_unit)
-
-house_only16$area_live_finished <- as.numeric(house_only16$area_live_finished)
 
 # select the dataframe
 data = na.omit(house_only16_mv)
@@ -170,10 +161,16 @@ xgb.plot.importance(importance_matrix = importance, top_n = 15)
 
 set.seed(0)
 
+str(train16)
+
+fact_col <- colnames(train16)[sapply(train16,is.character)]
+
+for(i in fact_col) set(train16,j=i,value = factor(train16[[i]]))
+for (i in fact_col) set(test16,j=i,value = factor(test16[[i]]))
 
 # create tasks for learner
-traintask <- makeClassifTask(data = train16, target = 'num_tax_total')
-testtask <- makeClassifTask(data = test16, target = 'num_tax_total')
+traintask <- makeRegrTask(data = train16, target = 'num_tax_total')
+testtask <- makeRegrTask(data = test16, target = 'num_tax_total')
 
 # create dummy features, as classif.xgboost does not support factors
 traintask <- createDummyFeatures(obj = traintask)
@@ -181,7 +178,7 @@ testtask <- createDummyFeatures(obj = traintask)
 
 # create learner
 # fix number of rounds and eta 
-lrn <- makeLearner("classif.xgboost", predict.type = "response")
+lrn <- makeLearner("regr.xgboost", predict.type = "response")
 lrn$par.vals <- list(objective="reg:squarederror",
                      eval_metric="rmse", 
                      nrounds=100L, 
@@ -208,11 +205,13 @@ ctrl <- makeTuneControlRandom(maxit = 10L)
 #set parallel backend
 parallelStartSocket(cpus = detectCores())
 
+rm(rmse)
+
 #parameter tuning
 mytune <- tuneParams(learner = lrn, 
                      task = traintask, 
                      resampling = rdesc, 
-                     measures = acc, 
+                     measures = list(rmse), 
                      par.set = params, 
                      control = ctrl, 
                      show.info = T)
