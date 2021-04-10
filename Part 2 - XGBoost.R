@@ -18,12 +18,51 @@ library(parallel)
 library(parallelMap) 
 library(randomForest)
 
-rm(list=ls())
+#rm(list=ls())
 
-house_only16_mv <- fread('./Data/house_only16_mv.csv')
-house_only16 <- fread('./Data/house_only16.csv')
+house_only16_mv <- fread('./Data/house_only16_mv.csv', drop = 'V1')
+
+colClasses = c(id_parcel = 'numeric',
+               num_bathroom = 'numeric',
+               num_bedroom = 'numeric',
+               area_live_finished = 'numeric',
+               flag_tub_or_spa = 'numeric',
+               loc_latitude = 'numeric',       
+               loc_longitude = 'numeric',
+               area_lot = 'numeric',
+               factor = 'factor',
+               loc_zip  = 'numeric',
+               loc_county = 'factor',
+               age = 'numeric',
+               flag_fireplace = 'numeric',
+               num_tax_building = 'numeric',
+               num_tax_total = 'numeric',
+               num_tax_land = 'numeric',
+               num_unit = 'numeric',
+               quality_factor = 'factor',
+               heating_factor = 'factor',
+               prop_living = 'numeric_character',
+               build_land_prop = 'numeric_character')
+
+# make conversions
+for (i in colnames(house_only16_mv)) {
+  if (colClasses[i][[1]] == 'numeric') {
+    house_only16_mv[[i]] <- as.numeric(house_only16_mv[[i]])
+  } else if (colClasses[[i]] == 'factor') {
+    house_only16_mv[[i]] <- as.factor(house_only16_mv[[i]])
+  } else if (colClasses[[i]] == 'numeric_character'){
+    house_only16_mv[[i]] <- as.numeric(sub(",", ".", house_only16_mv[[i]], fixed = TRUE))
+  }
+}
+
+str(house_only16_mv)
+
 
 ### PART 1: DATA PREPROCESSING ###--------------------------------------
+
+str(house_only16_mv)
+
+
 # convert to numeric, as xgboost only handles numeric values
 house_only16_mv$area_live_finished <- as.numeric(house_only16_mv$area_live_finished)
 house_only16_mv$num_unit <- as.numeric(house_only16_mv$num_unit)
@@ -130,6 +169,7 @@ xgb.plot.importance(importance_matrix = importance, top_n = 15)
 # Model 2: Optimized parameters  -----------------------------
 
 set.seed(0)
+
 
 # create tasks for learner
 traintask <- makeClassifTask(data = train16, target = 'num_tax_total')
