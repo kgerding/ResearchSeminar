@@ -180,6 +180,8 @@ house_only16 <- house_only16 %>% select(hedonics)
 #house_only16_mv <- na.omit(house_only16_mv)
 
 
+
+
 ## Step 5: Eliminate properties without buildings and very low values ----------
 
 # drop building values below 50'000
@@ -217,6 +219,11 @@ ggplot(data = house_only16[1:100000,], aes(x = area_lot, y = (num_tax_building))
 
 # we need to filter the outlier of high area_lot but very low building structure value 
 house_only16 <- house_only16[house_only16$area_lot < 1e7,]
+
+
+# Step 6: save the dataframe ------------------------------------------
+write.csv2(house_only16_mv, './Data/house_only16_mv')
+write.csv2(house_only16, './Data/house_only16')
 
 
 ### PART 2 ALGORITHMS ###---------------------------------------------------
@@ -405,6 +412,10 @@ set.seed(0)
 traintask <- makeClassifTask(data = train16, target = 'num_tax_total')
 testtask <- makeClassifTask(data = test16, target = 'num_tax_total')
 
+# create dummy features, as classif.xgboost does not support factors
+traintask <- createDummyFeatures(obj = traintask)
+testtask <- createDummyFeatures(obj = traintask)
+
 # create learner
 # fix number of rounds and eta 
 lrn <- makeLearner("classif.xgboost", predict.type = "response")
@@ -421,8 +432,11 @@ params <- makeParamSet(makeDiscreteParam("booster",
                        makeNumericParam("subsample",lower = 0.5,upper = 1), 
                        makeNumericParam("colsample_bytree",lower = 0.5,upper = 1))
 
+
 # set resampling strategy
-rdesc <- makeResampleDesc("CV",stratify = T,iters=5L)
+# as we don't have enough observations for certain classes we cannot do stratification
+# e.g. we may not have 5 observations for a house with the factor and class 'wood'
+rdesc <- makeResampleDesc("CV",stratify = F, iters=5L)
 
 #search strategy
 # instead of a grid search we use a random search strategy to find the best parameters
@@ -433,12 +447,14 @@ parallelStartSocket(cpus = detectCores())
 
 #parameter tuning
 mytune <- tuneParams(learner = lrn, 
-                     task = task, 
+                     task = traintask, 
                      resampling = rdesc, 
                      measures = acc, 
                      par.set = params, 
                      control = ctrl, 
                      show.info = T)
+
+
 mytune$y 
 
 
