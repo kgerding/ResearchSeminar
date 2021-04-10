@@ -316,8 +316,11 @@ xgboost(data = train16,
         num_parallel_tree = 1)
 
 
+# Bagging Predictor ------------------------------------------------------------
 
-# Spatial Regression ------------------------------------------------------
+
+
+# Spatial Regression -----------------------------------------------------------
 
 # Step 1: Visualisation
 
