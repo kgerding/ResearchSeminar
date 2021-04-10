@@ -1,5 +1,5 @@
 #########################################################
-### Advanced Algorithms -----------------------------------
+### XG Boost -----------------------------------
 #########################################################
 
 "note: Xgboost manages only numeric vectors.
@@ -18,10 +18,12 @@ library(parallel)
 library(parallelMap) 
 library(randomForest)
 
+rm(list=ls())
 
+house_only16_mv <- fread('./Data/house_only16_mv.csv')
+house_only16 <- fread('./Data/house_only16.csv')
 
-
-
+### PART 1: DATA PREPROCESSING ###--------------------------------------
 # convert to numeric, as xgboost only handles numeric values
 house_only16_mv$area_live_finished <- as.numeric(house_only16_mv$area_live_finished)
 house_only16_mv$num_unit <- as.numeric(house_only16_mv$num_unit)
@@ -69,7 +71,7 @@ dtrain <- xgb.DMatrix(data = sparse_matrix_train, label = output_vector)
 dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
 
 
-### XGBOOST - training ###  -----------------------------
+### PART 2: XGBOOST Training ###  -----------------------------
 
 # Model 1: Default parameters  -----------------------------
 #Let's start with a standard model and parameters and start optimizing the parameters later from here
