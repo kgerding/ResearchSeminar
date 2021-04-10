@@ -22,6 +22,8 @@ library(rgeos)
 
 rm(list=ls())
 
+setwd('/Users/tgraf/Google Drive/Uni SG/Master/Research Seminar /Repository')
+
 ### Read in Data ---------------------------------------------------------------
 
 # prices from Zillow transactions 2016 and 2017
@@ -269,7 +271,11 @@ hedonic_total_fact <- lm(log(num_tax_total) ~ num_bathroom + num_bedroom + area_
 
 summary(hedonic_total_fact_mv)
 
-## Advanced Algorithms --------------------------------
+
+#########################################################
+### Advanced Algorithms -----------------------------------
+#########################################################
+
 "note: Xgboost manages only numeric vectors.
 For many machine learning algorithms, using correlated features is not a good idea. 
 It may sometimes make prediction less accurate, and most of the time make interpretation of the model 
@@ -281,6 +287,11 @@ Therefore we have nothing to do to manage this situation.
 
 library(xgboost)
 library(Matrix)
+library(mlr)
+library(parallel)
+library(parallelMap) 
+library(randomForest)
+
 
 
 # convert to numeric, as xgboost only handles numeric values
@@ -298,7 +309,7 @@ data = na.omit(house_only16_mv)
   train_ind <- sample(seq_len(nrow(data)), size = smp_size)
   
   # features we want to omit for the model 
-  omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_total', 'num_tax_land', 'factor')
+  omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor')
 
   # Split the data into train and test
   train16 <- data[train_ind,]
@@ -310,68 +321,135 @@ data = na.omit(house_only16_mv)
   
   #omit variables and convert to numeric again
   train16 <- train16 %>% select(-omit)
-  train16 <- (as.matrix(sapply(train16, as.numeric)))
+  #train16 <- data.frame(sapply(train16, as.numeric))
   test16 <- test16 %>% select(-omit)
-  test16 <- (as.matrix(sapply(test16, as.numeric)))
+  #test16 <- data.frame(sapply(test16, as.numeric))
   
   # convert categorical factor into dummy variables using one-hot encoding
   sparse_matrix_train <- sparse.model.matrix(num_tax_total~.-1, data = train16)
   sparse_matrix_test <- sparse.model.matrix(num_tax_total~.-1, data = test16)
   
-  
   # check the dimnames crated by the one-hot encoding
-  sparse_matrix@Dimnames[[2]]
+  sparse_matrix_train@Dimnames[[2]]
   
   # they should both be of equal length
   nrow(sparse_matrix) 
   nrow(output_vector)
   
   # Create a dense matrix
-  dtrain <- xgb.DMatrix(data = sparse_matrix, label = output_vector)
-  dtest <- xgb.DMatrix(data = test16, label=test_vector)
+  dtrain <- xgb.DMatrix(data = sparse_matrix_train, label = output_vector)
+  dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
   
   
 ### XGBOOST - training ###  -----------------------------
-"about the parameters: 
-  - eta: Low eta value means model is more robust to overfitting.
-  - gamma: minimum loss reduction required to make a further partition on a leaf node of the tree"
 
-# model 1 (with dense matrix) - xg boosting trees  -----------------------------
-model_xgb1 <- xgboost(data = dtrain, 
-                      max_depth = 5, 
-                      eta = 1, 
-                      nthread = 8, 
-                      nrounds = 20, 
-                      gamma = 0,
-                      objective = "reg:squarederror",
-                      early_stopping_rounds = 5, # stop if we don't see much improvement
+# Model 1: Default parameters  -----------------------------
+#Let's start with a standard model and parameters and start optimizing the parameters later from here
+
+params <- list(booster = "gbtree", 
+                 objective = "reg:squarederror",
+                 eta=0.3, # learning rate, between 0 and 1
+                 gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
+                 max_depth=6, # max depth of trees, the more deep the more complex and overfitting
+                 min_child_weight=1, # min number of instances per child node, blocks potential feature interaction and thus overfitting
+                 subsample=1, # number of observations per tree, typically between 0.5 - 0.8
+                 colsample_bytree=1) # number of variables per tree, typically between 0.5 - 0.9
+
+# using cross-validation to find optimal nrounds parameter
+xgbcv <- xgb.cv(params = params,
+                      data = dtrain, 
+                      nrounds = 100, 
+                      nfold = 5,
+                      showsd = T, # whether to show standard deviation of cv
+                      stratified = T, 
+                      print_every_n = 1, 
+                      early_stopping_rounds = 20, # stop if we don't see much improvement
+                      maximize = F, 
                       verbose = 2)
 
+# Result of best iteration
+xgbcv$best_iteration
 
-pred <- predict(model_xgb1, test16)
-rmse <- sqrt(mean(pred-test_vector)^2)
+# first training with optimized nround
+xgb1 <- xgb.train(params = params, 
+                  data = dtrain, 
+                  nrounds = xgbcv$best_iteration, 
+                  watchlist = list(val = dtest, train = dtrain), 
+                  early_stopping_rounds = 20, 
+                  maximize = F, 
+                  eval_metric = "rmse"
+                  )
+
+# model prediction
+xgb1_pred <- predict(xgb1, dtest)
+rmse <- sqrt(mean((xgb1_pred - test_vector)^2))
 print(rmse)
-print(head(pred))
+
+print(head(xgb1_pred))
 print(head(test_vector))
-
-# save model to local file
-xgb.save(model_xgb1, "xgboost.model1")
-
-# # load xgboosting model
-# bst2 <- xgb.load("xgboost.model")
 
 # plot the most important leaflets
 xgb.plot.multi.trees(feature_names = names(dtrain), 
-                     model = model_xgb1)
+                     model = xgb1)
 
 # Plot importance
-importance <- xgb.importance(feature_names = names(dtrain), model = model_xgb1)
-xgb.plot.importance(importance_matrix = importance)
+importance <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb1)
+xgb.plot.importance(importance_matrix = importance, top_n = 15)
 
 
-# testing whether the results make sense 
-test <- chisq.test(data.frame(unlist(train16))$area_live_finished, output_vector)
-print(test)
+# Model 2: Optimized parameters  -----------------------------
+
+set.seed(0)
+
+# create tasks for learner
+traintask <- makeClassifTask(data = train16, target = 'num_tax_total')
+testtask <- makeClassifTask(data = test16, target = 'num_tax_total')
+
+# create learner
+# fix number of rounds and eta 
+lrn <- makeLearner("classif.xgboost", predict.type = "response")
+lrn$par.vals <- list(objective="reg:squarederror",
+                     eval_metric="rmse", 
+                     nrounds=100L, 
+                     eta=0.1)
+
+# set parameter space
+params <- makeParamSet(makeDiscreteParam("booster",
+                                         values = c("gbtree","gblinear")), 
+                       makeIntegerParam("max_depth",lower = 3L,upper = 10L), 
+                       makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
+                       makeNumericParam("subsample",lower = 0.5,upper = 1), 
+                       makeNumericParam("colsample_bytree",lower = 0.5,upper = 1))
+
+# set resampling strategy
+rdesc <- makeResampleDesc("CV",stratify = T,iters=5L)
+
+#search strategy
+# instead of a grid search we use a random search strategy to find the best parameters
+ctrl <- makeTuneControlRandom(maxit = 10L)
+
+#set parallel backend
+parallelStartSocket(cpus = detectCores())
+
+#parameter tuning
+mytune <- tuneParams(learner = lrn, 
+                     task = task, 
+                     resampling = rdesc, 
+                     measures = acc, 
+                     par.set = params, 
+                     control = ctrl, 
+                     show.info = T)
+mytune$y 
+
+
+
+
+# # save model to local file
+# xgb.save(model_xgb1, "xgboost.model1")
+# 
+# # load xgboosting model
+# bst2 <- xgb.load("xgboost.model")
+
 
 # model 2 (without dense matrix) - xg boosting trees -----------------------------
 model_xgb2 <- xgboost(data = sparse_matrix, 
@@ -393,19 +471,43 @@ xgb.plot.importance(importance_matrix = importance)
 # model 3 (measure learning progress with xgb.train) - xg boosting trees  -----------------------------
 watchlist <- list(train=dtrain, test=dtest)
 
+"about the parameters: 
+  - eta: Low eta value means model is more robust to overfitting.
+  - gamma: minimum loss reduction required to make a further partition on a leaf node of the tree"
+
+params <- list(booster = "gbtree",
+               objective = "reg:squarederror", 
+               eta=0.3, 
+               gamma=0,
+               max_depth=6, 
+               early_stopping_rounds = 5, 
+               verbose = 2, 
+) 
+
+xgbcv <- xgb.cv( params = params, 
+                 data = dtrain, 
+                 nrounds = 100, 
+                 nfold = 5, 
+                 showsd = T, 
+                 stratified = T, 
+                 print_every_n = 1, 
+                 early_stopping_rounds = 5, 
+                 maximize = F)
+
 model_xgb3 <- xgb.train(data=dtrain, 
-                 max_depth=5, 
-                 eta=1, 
-                 nthread = 4, 
-                 nrounds=10, 
-                 watchlist=watchlist, 
-                 eval_metric = 'rmse',
-                 objective = "reg:squarederror",
-                 verbose = 2)
+                        params = params, 
+                        watchlist = watchlist,
+                        early_stopping_rounds = 5, 
+                        nrounds = 1000)
+
 
 # Plot importance
-importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = model_xg3)
+# importance <- xgb.importance(feature_names = sparse_matrix_train@Dimnames[[2]], model = model_xgb3)
+importance <- xgb.importance (feature_names = colnames(sparse_matrix_train), model = model_xgb3)
 xgb.plot.importance(importance_matrix = importance, top_n = 15)
+
+xgb.plot.tree(model = model_xgb3)
+
 
 #xgb.plot.deepness(model = model_xgb3, 
 #                  which = c("2x1", "max.depth", "med.depth", "med.weight"))
