@@ -12,16 +12,20 @@ library(foreach)
 library(caret)
 library(rpart)
 library(ipred)
+library(pdp)
+library(vip)
+
 
 # Reading data
-data <- house_only16[1:1000,]
+data <- house_only16[1:100000,]
 
 # Training data
 smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
 train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 
 # omit variables
-omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_land', 'factor','num_tax_building')
+omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county',
+          'num_tax_land', 'factor','num_tax_total', 'build_land_prop', 'prop_living')
 
 # Split the data into train and test
 train16 <- data[train_ind,]
@@ -33,24 +37,26 @@ test16 <- test16 %>% select(-omit)
 train16 <- na.omit(train16)
 test16 <- na.omit(test16)
 
-# set seed
+# set seed for replicability
 set.seed(123)
 
 # train bagged model
 price_bagging <- bagging(
-  formula = log(num_tax_total) ~ .,
+  formula = log(num_tax_building) ~ .,
   data = train16,
   nbagg = 100,  
   coob = TRUE,
   control = rpart.control(minsplit = 2, cp = 0)
 )
 
+# show model
 price_bagging
 
+# compute forecasts
 predict_price <- predict(price_bagging, newdata = test16)
 
-comparison <- data.frame(seq(1,nrow(test16),1), exp(predict_price), test16$num_tax_total)
-comparison <- na.omit(comparison)
+# combine and compare with actual test data
+comparison <- data.frame(seq(1,nrow(test16),1), exp(predict_price), test16$num_tax_building)
 colnames(comparison) <- c( 'ind', 'prediction', 'actual')
 
 comp <- ggplot(comparison , aes( x =  ind )) +
@@ -134,5 +140,23 @@ predictions %>%
   ggplot(aes(tree, RMSE)) +
   geom_line() +
   xlab('Number of trees')
+
+
+# Construct partial dependence plots
+p1 <- pdp::partial(
+  price_bagging, 
+  pred.var = 'num_tax_total',
+  grid.resolution = 20
+) %>% 
+  autoplot()
+
+p2 <- pdp::partial(
+  price_bagging, 
+  pred.var = "Lot_Frontage", 
+  grid.resolution = 20
+) %>% 
+  autoplot()
+
+gridExtra::grid.arrange(p1, p2, nrow = 1)
 
 vip(price_bagging2, num_features = 40)
