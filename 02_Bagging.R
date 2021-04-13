@@ -19,7 +19,7 @@ library(vip)
 rm(list=ls())
 
 # Reading data
-data <- house_only16[1:100000,]
+data <- house_only16[1:1000,]
 
 # Training data
 smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
@@ -62,8 +62,8 @@ comparison <- data.frame(seq(1,nrow(test16),1), exp(predict_price), test16$num_t
 colnames(comparison) <- c( 'ind', 'prediction', 'actual')
 
 comp <- ggplot(comparison , aes( x =  ind )) +
-  geom_line(aes(y = actual), color = "black") + 
-  geom_line(aes(y = prediction), color="red1", size = .25) 
+  geom_point(aes(y = actual), color = "black") + 
+  geom_point(aes(y = prediction), color="red1", size = .25) 
 comp
 
 comp <- ggplot(comparison , aes( x =  prediction, y = actual )) +
