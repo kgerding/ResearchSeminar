@@ -16,6 +16,8 @@ library(pdp)
 library(vip)
 
 
+rm(list=ls())
+
 # Reading data
 data <- house_only16[1:100000,]
 
