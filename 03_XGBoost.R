@@ -157,7 +157,7 @@ xgb.plot.importance(importance_matrix = importance, top_n = 15)
 
 # Model 2: Optimized parameters  -----------------------------
 
-set.seed(0)
+set.seed(123)
 
 str(train16)
 
