@@ -17,6 +17,8 @@ library(mlr)
 library(parallel)
 library(parallelMap) 
 library(randomForest)
+library(data.table)
+library(dplyr)
 
 rm(list=ls())
 
@@ -92,10 +94,6 @@ sparse_matrix_test <- sparse.model.matrix(num_tax_total~.-1, data = test16)
 # check the dimnames crated by the one-hot encoding
 sparse_matrix_train@Dimnames[[2]]
 
-# they should both be of equal length
-nrow(sparse_matrix) 
-nrow(output_vector)
-
 # Create a dense matrix
 dtrain <- xgb.DMatrix(data = sparse_matrix_train, label = output_vector)
 dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
@@ -119,7 +117,7 @@ params <- list(booster = "gbtree",
 xgbcv <- xgb.cv(params = params,
                 data = dtrain, 
                 nrounds = 100, 
-                nfold = 5,
+                nfold = 10,
                 showsd = T, # whether to show standard deviation of cv
                 stratified = T, 
                 print_every_n = 1, 
