@@ -75,7 +75,7 @@ smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
 train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 
 # features we want to omit for the model 
-omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor')
+omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor', 'build_land_prop')
 
 # Split the data into train and test
 train16 <- data[train_ind,]
@@ -392,8 +392,8 @@ plot_v3
 # SAVE MODELS AND PLOTS -----------------------------
 
 # save plot
-ggsave('plot_xgb', path = './Plots/', plot = plot_xgb, device = 'png')
-ggsave('plot_xgb_importance', path = './Plots/', plot = plot_xgb_importance, device = 'png')
+ggsave('plot_xgb.png', path = './Plots/', plot = plot_xgb, device = 'png')
+ggsave('plot_xgb_importance.png', path = './Plots/', plot = plot_xgb_importance, device = 'png')
 
 # save model to local file
 xgb.save(xgb2, "xgboost.model")
