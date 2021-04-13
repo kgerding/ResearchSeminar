@@ -19,6 +19,7 @@ library(parallelMap)
 library(randomForest)
 library(data.table)
 library(dplyr)
+library(tidyverse)
 
 rm(list=ls())
 
@@ -65,6 +66,9 @@ str(house_only16_mv)
 # select the dataframe
 data = na.omit(house_only16_mv)
 
+# use only first 10'000
+data = data[1:10000,]
+
 ##set the seed to make your partition reproducible
 set.seed(123)
 smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
@@ -78,8 +82,8 @@ train16 <- data[train_ind,]
 test16 <- data[-train_ind, ]
 
 # define training label = dependent variable
-output_vector = as.matrix(train16[,'num_tax_total'])
-test_vector = as.matrix(test16[,'num_tax_total'])
+output_vector = as.matrix(log(train16[,'num_tax_total']))
+test_vector = as.matrix(log(test16[,'num_tax_total']))
 
 #omit variables and convert to numeric again
 train16 <- train16 %>% select(-omit)
@@ -88,8 +92,8 @@ test16 <- test16 %>% select(-omit)
 #test16 <- data.frame(sapply(test16, as.numeric))
 
 # convert categorical factor into dummy variables using one-hot encoding
-sparse_matrix_train <- sparse.model.matrix(num_tax_total~.-1, data = train16)
-sparse_matrix_test <- sparse.model.matrix(num_tax_total~.-1, data = test16)
+sparse_matrix_train <- sparse.model.matrix(log(num_tax_total)~.-1, data = train16)
+sparse_matrix_test <- sparse.model.matrix(log(num_tax_total)~.-1, data = test16)
 
 # check the dimnames crated by the one-hot encoding
 sparse_matrix_train@Dimnames[[2]]
@@ -132,7 +136,7 @@ xgbcv$best_iteration
 xgb1 <- xgb.train(params = params, 
                   data = dtrain, 
                   nrounds = xgbcv$best_iteration, 
-                  watchlist = list(val = dtest, train = dtrain), 
+                  watchlist = list(test = dtest, train = dtrain), 
                   early_stopping_rounds = 20, 
                   maximize = F, 
                   eval_metric = "rmse"
@@ -140,26 +144,14 @@ xgb1 <- xgb.train(params = params,
 
 # model prediction
 xgb1_pred <- predict(xgb1, dtest)
-rmse <- sqrt(mean((xgb1_pred - test_vector)^2))
-print(rmse)
-
-print(head(xgb1_pred))
-print(head(test_vector))
-
-# plot the most important leaflets
-xgb.plot.multi.trees(feature_names = names(dtrain), 
-                     model = xgb1)
-
-# Plot importance
-importance <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb1)
-xgb.plot.importance(importance_matrix = importance, top_n = 15)
+rmse_xgb1 <- sqrt(mean((xgb1_pred - test_vector)^2))
+r2_xgb1 <- 1 - sum((test_vector-xgb1_pred)^2) / sum((test_vector-mean(xgb1_pred))^2)
 
 
-# Model 2: Optimized parameters  -----------------------------
+
+# Find Optimized parameters  -----------------------------
 
 set.seed(123)
-
-str(train16)
 
 fact_col <- colnames(train16)[sapply(train16,is.character)]
 
@@ -184,7 +176,7 @@ lrn$par.vals <- list(objective="reg:squarederror",
 
 # set parameter space
 params <- makeParamSet(makeDiscreteParam("booster",
-                                         values = c("gbtree","gblinear")), 
+                                         values = c("gbtree")), 
                        makeIntegerParam("max_depth",lower = 3L,upper = 10L), 
                        makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
                        makeNumericParam("subsample",lower = 0.5,upper = 1), 
@@ -192,20 +184,20 @@ params <- makeParamSet(makeDiscreteParam("booster",
 
 
 # set resampling strategy
-# as we don't have enough observations for certain classes we cannot do stratification
-# e.g. we may not have 5 observations for a house with the factor and class 'wood'
+'??'# as we don't have enough observations for certain classes we cannot do stratification
+'??'# e.g. we may not have 5 observations for a house with the factor and class 'wood'
+# If you have many classes for a classification type predictive modeling problem or the classes are imbalanced 
+#(there are a lot more instances for one class than another), it can be a good idea to create stratified folds when performing cross validation.
 rdesc <- makeResampleDesc("CV",stratify = F, iters=5L)
 
-#search strategy
+# search strategy
 # instead of a grid search we use a random search strategy to find the best parameters
 ctrl <- makeTuneControlRandom(maxit = 10L)
 
-#set parallel backend
+# set parallel backend
 parallelStartSocket(cpus = detectCores())
 
-rm(rmse)
-
-#parameter tuning
+# parameter tuning
 mytune <- tuneParams(learner = lrn, 
                      task = traintask, 
                      resampling = rdesc, 
@@ -214,90 +206,174 @@ mytune <- tuneParams(learner = lrn,
                      control = ctrl, 
                      show.info = T)
 
-
-mytune$y 
-
-
+# print the optimal parameters
+mytune
 
 
-# # save model to local file
-# xgb.save(model_xgb1, "xgboost.model1")
-# 
-# # load xgboosting model
-# bst2 <- xgb.load("xgboost.model")
 
 
-# model 2 (without dense matrix) - xg boosting trees -----------------------------
-model_xgb2 <- xgboost(data = sparse_matrix, 
-                      booster = "gbtree", 
-                      label = output_vector,
-                      max.depth = 4, # the depth of the trees
-                      eta = 1, 
-                      gamma = 0,
-                      nthread = 8, # number of cpu threads
-                      nrounds = 10, 
-                      objective = "reg:squarederror",
-                      verbose = 2) # see the training progress
+# Model 2: XGBoost with optimized parameters  -----------------------------
 
-# Plot importance
-importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = model_xgb2)
-xgb.plot.importance(importance_matrix = importance)
+# take the parameters of mytune
+params <- list(booster = "gbtree", 
+               objective = "reg:squarederror",
+               eta=0.3, # learning rate, between 0 and 1
+               gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
+               max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
+               min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
+               subsample= mytune$x$subsample, # number of observations per tree, typically between 0.5 - 0.8
+               colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
 
+# using cross-validation to find optimal nrounds parameter
+xgbcv <- xgb.cv(params = params,
+                data = dtrain, 
+                nrounds = 100, 
+                nfold = 10,
+                showsd = T, # whether to show standard deviation of cv
+                stratified = T, 
+                print_every_n = 1, 
+                early_stopping_rounds = 20, # stop if we don't see much improvement
+                maximize = F, 
+                verbose = 2)
 
-# model 3 (measure learning progress with xgb.train) - xg boosting trees  -----------------------------
-watchlist <- list(train=dtrain, test=dtest)
-
-"about the parameters: 
-  - eta: Low eta value means model is more robust to overfitting.
-  - gamma: minimum loss reduction required to make a further partition on a leaf node of the tree"
-
-params <- list(booster = "gbtree",
-               objective = "reg:squarederror", 
-               eta=0.3, 
-               gamma=0,
-               max_depth=6, 
-               early_stopping_rounds = 5, 
-               verbose = 2, 
-) 
-
-xgbcv <- xgb.cv( params = params, 
-                 data = dtrain, 
-                 nrounds = 100, 
-                 nfold = 5, 
-                 showsd = T, 
-                 stratified = T, 
-                 print_every_n = 1, 
-                 early_stopping_rounds = 5, 
-                 maximize = F)
-
-model_xgb3 <- xgb.train(data=dtrain, 
-                        params = params, 
-                        watchlist = watchlist,
-                        early_stopping_rounds = 5, 
-                        nrounds = 1000)
+# Result of best iteration
+xgbcv$best_iteration
 
 
-# Plot importance
-# importance <- xgb.importance(feature_names = sparse_matrix_train@Dimnames[[2]], model = model_xgb3)
-importance <- xgb.importance (feature_names = colnames(sparse_matrix_train), model = model_xgb3)
-xgb.plot.importance(importance_matrix = importance, top_n = 15)
+# first training with optimized nround
+xgb2 <- xgb.train(params = params, 
+                  data = dtrain, 
+                  nrounds = xgbcv$best_iteration, 
+                  watchlist = list(test = dtest, train = dtrain), 
+                  early_stopping_rounds = 20, 
+                  maximize = F, 
+                  eval_metric = "rmse"
+)
 
-xgb.plot.tree(model = model_xgb3)
+# model prediction
+xgb2_pred <- predict(xgb2, dtest)
+rmse_xgb2 <- sqrt(mean((xgb2_pred - test_vector)^2))
+r2_xgb2 <- 1 - sum((test_vector-xgb2_pred)^2) / sum((test_vector-mean(xgb2_pred))^2)
 
 
-#xgb.plot.deepness(model = model_xgb3, 
-#                  which = c("2x1", "max.depth", "med.depth", "med.weight"))
 
-# model 4 - linear boosting
+# MODEL 3 - linear boosting ---------------------------
 "Note that linear boosting is great to capture linear relationships while trees are better at
 capturing non-linear relationship"
-model_xgb4 <- xgb.train(data=dtrain, 
-                        booster = "gblinear",
-                        max_depth=5,
-                        nthread = 4, 
-                        nrounds=10,
-                        watchlist=watchlist, 
-                        eval_metric = "rmse",
-                        objective = "reg:squarederror",
-                        verbose = 2)
+
+# take the parameters of mytune
+params <- list(booster = "gblinear", 
+               objective = "reg:squarederror",
+               eta=0.3, # learning rate, between 0 and 1
+               gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
+               max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
+               min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
+               subsample= mytune$x$subsample, # number of observations per tree, typically between 0.5 - 0.8
+               colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
+
+# using cross-validation to find optimal nrounds parameter
+xgbcv <- xgb.cv(params = params,
+                data = dtrain, 
+                nrounds = 100, 
+                nfold = 10,
+                showsd = T, # whether to show standard deviation of cv
+                stratified = T, 
+                print_every_n = 1, 
+                early_stopping_rounds = 20, # stop if we don't see much improvement
+                maximize = F, 
+                verbose = 2)
+
+# Result of best iteration
+xgbcv$best_iteration
+
+
+# first training with optimized nround
+xgb3 <- xgb.train(data = dtrain, 
+                  booster = "gblinear",
+                  objective = "reg:squarederror",
+                  eta=0.3, # learning rate, between 0 and 1
+                  gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
+                  max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
+                  min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
+                  subsample= mytune$x$subsample, # number of observations per tree, typically between 0.5 - 0.8
+                  colsample_bytree = mytune$x$colsample_bytree, # number of variables per tree, typically between 0.5 - 0.9
+                  nrounds = xgbcv$best_iteration, 
+                  watchlist = list(test = dtest, train = dtrain), 
+                  early_stopping_rounds = 20, 
+                  maximize = F, 
+                  eval_metric = "rmse")
+
+
+# model prediction
+xgb3_pred <- predict(xgb3, dtest)
+rmse_xgb3 <- sqrt(mean((xgb3_pred - test_vector)^2))
+r2_xgb3 <- 1 - sum((test_vector-xgb3_pred)^2) / sum((test_vector-mean(xgb3_pred))^2)
+
+
+# COMPARE RMSE and R2 -----------------------------
+comparison <- data.frame(matrix(data = NA, nrow = 3, ncol = 2, dimnames = list(c('xgb_tree 1', 'xgb_tree 2', 'xgb_linear 3'), c('RMSE', 'R2'))))
+
+comparison$RMSE[1] <- rmse_xgb1
+comparison$RMSE[2] <- rmse_xgb2
+comparison$RMSE[3] <- rmse_xgb3
+
+comparison$R2[1] <- r2_xgb1
+comparison$R2[2] <- r2_xgb2
+comparison$R2[3] <- r2_xgb3
+
+comparison
+
+# PLOTS --------------------------------------------------
+
+# plot the most important leaflets
+xgb.plot.multi.trees(feature_names = names(dtrain), 
+                     model = xgb2)
+
+# Plot importance
+importance2 <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb2)
+xgb.plot.importance(importance_matrix = importance2, top_n = 15)
+
+# merge dataframes and make it from wide to long
+merged_df <- data.frame(cbind(test_vector, xgb2_pred)) #by 0 merges based on index
+merged_df <- merged_df[order(actual),]
+merged_df$initialindex <- row.names(merged_df)
+row.names(merged_df) <- NULL
+
+
+# Plot histograms
+hist(predicted$xgb2_pred)
+hist(actual$num_tax_total)
+
+# Plot predicted vs. actual 
+colors <- c("actual" = "red", "predicted" = "blue")
+
+plot_xgb <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) +
+  geom_point(aes(y = xgb2_pred, color = 'predicted')) +
+  geom_point(aes(y = num_tax_total, color = 'actual')) +
+  ggtitle('Actual vs. predicted values') + 
+  scale_color_manual(values = colors) +
+  labs(x = 'Index', y = 'Log(num_tax_total)')
+
+plot_xgb
+
+# # version 2 for plotting
+# merged_df_long <- gather(merged_df, key = variable, value = value, 
+#                          c("xgb2_pred", "num_tax_total"))
+# ggplot(merged_df_long, aes(x=as.numeric(initialindex), y = value, group = variable, colour = variable)) + 
+#   geom_point()
+
+
+# SAVE MODELS AND PLOTS -----------------------------
+
+# save plot
+ggsave('plot_xgb', path = './Images/', plot = plot_xgb, device = 'png')
+
+# save model to local file
+xgb.save(xgb2, "xgboost.model")
+
+
+# LOAD MODEL ----------------------------------------
+# # load xgboosting model
+# xgb <- xgb.load("xgboost.model")
+
 
