@@ -123,7 +123,7 @@ xgbcv <- xgb.cv(params = params,
                 nrounds = 100, 
                 nfold = 10,
                 showsd = T, # whether to show standard deviation of cv
-                stratified = T, 
+                stratified = F, 
                 print_every_n = 1, 
                 early_stopping_rounds = 20, # stop if we don't see much improvement
                 maximize = F, 
@@ -184,8 +184,6 @@ params <- makeParamSet(makeDiscreteParam("booster",
 
 
 # set resampling strategy
-'??'# as we don't have enough observations for certain classes we cannot do stratification
-'??'# e.g. we may not have 5 observations for a house with the factor and class 'wood'
 # If you have many classes for a classification type predictive modeling problem or the classes are imbalanced 
 #(there are a lot more instances for one class than another), it can be a good idea to create stratified folds when performing cross validation.
 rdesc <- makeResampleDesc("CV",stratify = F, iters=5L)
@@ -230,7 +228,7 @@ xgbcv <- xgb.cv(params = params,
                 nrounds = 100, 
                 nfold = 10,
                 showsd = T, # whether to show standard deviation of cv
-                stratified = T, 
+                stratified = F, 
                 print_every_n = 1, 
                 early_stopping_rounds = 20, # stop if we don't see much improvement
                 maximize = F, 
@@ -277,7 +275,7 @@ xgbcv <- xgb.cv(params = params,
                 nrounds = 100, 
                 nfold = 10,
                 showsd = T, # whether to show standard deviation of cv
-                stratified = T, 
+                stratified = F, 
                 print_every_n = 1, 
                 early_stopping_rounds = 20, # stop if we don't see much improvement
                 maximize = F, 
@@ -331,14 +329,27 @@ xgb.plot.multi.trees(feature_names = names(dtrain),
 
 # Plot importance
 importance2 <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb2)
-xgb.plot.importance(importance_matrix = importance2, top_n = 15)
+xgb_importance <- xgb.plot.importance(importance_matrix = importance2, top_n = 15)
+plot_xgb_importance <- xgb_importance %>%
+                        mutate(Feature = fct_reorder(Feature, Importance)) %>%
+                        ggplot(aes(x=Feature, y=Importance)) +
+                        geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
+                        coord_flip() +
+                        xlab("") +
+                        theme_bw()
+plot_xgb_importance
 
-# merge dataframes and make it from wide to long
-merged_df <- data.frame(cbind(test_vector, xgb2_pred)) #by 0 merges based on index
-merged_df <- merged_df[order(actual),]
+# define top 3 relevant variables
+variable1 = xgb_importance$Feature[1]
+variable2 = xgb_importance$Feature[2]
+variable3 = xgb_importance$Feature[3]
+
+
+# merge dataframes
+merged_df <- data.frame(cbind(test_vector, xgb2_pred, test16)) #by 0 merges based on index
+merged_df <- merged_df[order(merged_df$num_tax_total),]
 merged_df$initialindex <- row.names(merged_df)
 row.names(merged_df) <- NULL
-
 
 # Plot histograms
 hist(predicted$xgb2_pred)
@@ -346,15 +357,31 @@ hist(actual$num_tax_total)
 
 # Plot predicted vs. actual 
 colors <- c("actual" = "red", "predicted" = "blue")
-
 plot_xgb <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) +
   geom_point(aes(y = xgb2_pred, color = 'predicted')) +
   geom_point(aes(y = num_tax_total, color = 'actual')) +
   ggtitle('Actual vs. predicted values') + 
   scale_color_manual(values = colors) +
   labs(x = 'Index', y = 'Log(num_tax_total)')
-
 plot_xgb
+
+# Plot most Top 1 variable vs. actual 
+plot_v1 <- ggplot(data = merged_df) +
+  geom_point(aes(x = !!ensym(variable1), y = num_tax_total)) +
+  ggtitle(paste0('Log(num_tax_total) vs. ', variable1))
+plot_v1
+
+# Plot most Top 2 variable vs. actual 
+plot_v2 <- ggplot(data = merged_df) +
+  geom_point(aes(x = !!ensym(variable2), y = num_tax_total)) +
+  ggtitle(paste0('Log(num_tax_total) vs. ', variable2))
+plot_v2
+
+# Plot most Top 3 variable vs. actual 
+plot_v3 <- ggplot(data = merged_df) +
+  geom_point(aes(x = !!ensym(variable3), y = num_tax_total)) +
+  ggtitle(paste0('Log(num_tax_total) vs. ', variable3))
+plot_v3
 
 # # version 2 for plotting
 # merged_df_long <- gather(merged_df, key = variable, value = value, 
@@ -366,7 +393,7 @@ plot_xgb
 # SAVE MODELS AND PLOTS -----------------------------
 
 # save plot
-ggsave('plot_xgb', path = './Images/', plot = plot_xgb, device = 'png')
+ggsave('plot_xgb', path = './Plots/', plot = plot_xgb, device = 'png')
 
 # save model to local file
 xgb.save(xgb2, "xgboost.model")
