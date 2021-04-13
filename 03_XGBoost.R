@@ -344,7 +344,6 @@ variable1 = xgb_importance$Feature[1]
 variable2 = xgb_importance$Feature[2]
 variable3 = xgb_importance$Feature[3]
 
-
 # merge dataframes
 merged_df <- data.frame(cbind(test_vector, xgb2_pred, test16)) #by 0 merges based on index
 merged_df <- merged_df[order(merged_df$num_tax_total),]
@@ -394,6 +393,7 @@ plot_v3
 
 # save plot
 ggsave('plot_xgb', path = './Plots/', plot = plot_xgb, device = 'png')
+ggsave('plot_xgb_importance', path = './Plots/', plot = plot_xgb_importance, device = 'png')
 
 # save model to local file
 xgb.save(xgb2, "xgboost.model")
