@@ -18,6 +18,8 @@ library(leaflet.extras)
 library(rgdal)
 library(mapview)
 library(rgeos)
+library(lmtest)
+library(sandwich)
 
 
 rm(list=ls())
@@ -40,13 +42,13 @@ colnames(quality_id) <- c('type_quality', 'quality_factor')
 
 ### PART 1: DATA INSPECTION ----------------------------------------------------
 
-all_data <- list(prices2016, prices2017)
+#all_data <- list(prices2016, prices2017)
 
 for (i in c(1,2)) {
 
   ## Step 0: Rename the Data
   
-  #i <- all_data[[1]]
+  i <- all_data[[1]]
   
   p2016 <- i %>% rename(
     id_parcel = parcelid,
@@ -161,7 +163,7 @@ for (i in c(1,2)) {
   sorted <- rev(sort(count_nas))
   barplot(sorted, cex.names = 0.5, las = 2)
   abline(v=35, col="red")
-  title(main = '% NAs in 2016 Data')
+  title(main = '% NAs in 2017 Data')
   
   
   # define and select hedonics (<0.2 NAs or <0.4 NAs)
@@ -250,52 +252,46 @@ for (i in c(1,2)) {
   house_only16_mv$logtotal <- log(house_only16_mv$num_tax_total)
   
   # simple regression of building value
-  hedonic_build <- lm(logbuild ~ num_bathroom + num_bedroom + area_live_finished + 
-                  flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+  hedonic_build <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
+                  flag_tub_or_spa + age + flag_fireplace #+ prop_living + build_land_prop
                   ,data = house_only16)
   
   summary(hedonic_build)
+  #plot(hedonic_build$residuals)
+  bptest(hedonic_build)
+  hedonic_build_robust <- coeftest(hedonic_build, vcov = vcovHC(hedonic_build, type = "HC0"))
   
   # simple regression of total value
-  hedonic_total <- lm(logtotal ~ num_bathroom + num_bedroom + area_live_finished + 
-                  flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+  hedonic_total <- lm(logtotal ~ num_bathroom + num_bedroom +  
+                  flag_tub_or_spa + log(area_lot) + age + flag_fireplace #+ prop_living + build_land_prop
                   ,
                   data = house_only16)
   
   summary(hedonic_total)
-  
+  #plot(hedonic_total$residuals)
+  bptest(hedonic_total)
+  hedonic_total_robust <- coeftest(hedonic_total, vcov = vcovHC(hedonic_total, type = "HC0"))
   
   # lm of building value with factors
-  hedonic_total_fact <- lm(logbuild ~ num_bathroom + num_bedroom + area_live_finished + 
-                  flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
-                  + factor
-                  , 
-                  data = house_only16)
   
-  summary(hedonic_total_fact)
-  
-  hedonic_total_fact2 <- lm(logbuild ~ num_bathroom + num_bedroom + area_live_finished + 
-                             flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
+  hedonic_build_fact <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
+                             flag_tub_or_spa + age + flag_fireplace #+ prop_living + build_land_prop
                            + factor + num_unit + quality_factor + heating_factor
                            , 
                            data = house_only16_mv)
   
-  summary(hedonic_total_fact2)
+  summary(hedonic_build_fact)
+  bptest(hedonic_build_fact)
+  hedonic_build_fact_robust <- coeftest(hedonic_build_fact, vcov = vcovHC(hedonic_build_fact, type = "HC0"))
   
   # lm of building value with factors
-  hedonic_total_fact <- lm(logtotal ~ num_bathroom + num_bedroom + area_live_finished + 
-                             flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
-                           + factor
-                           , data = house_only16)
+  hedonic_total_fact <- lm(logtotal ~ num_bathroom + num_bedroom +  
+                             flag_tub_or_spa + log(area_lot) + age + flag_fireplace #+ prop_living + build_land_prop
+                           + factor + num_unit + quality_factor + heating_factor
+                           , data = house_only16_mv) 
   
   summary(hedonic_total_fact)
-  
-  hedonic_total_fact <- lm(logtotal ~ num_bathroom + num_bedroom + area_live_finished + 
-                             flag_tub_or_spa + area_lot + age + flag_fireplace #+ prop_living + build_land_prop
-                           + factor + num_unit + quality_factor + heating_factor
-                           , data = house_only16_mv)
-  
-  summary(hedonic_total_fact_mv)
+  hedonic_total_fact_robust <- coeftest(hedonic_total_fact, vcov = vcovHC(hedonic_total_fact, type = "HC0"))
   
   # build nice regression table
   
@@ -304,20 +300,17 @@ for (i in c(1,2)) {
   library(officer)
   library(flextable)
   
-  coef_names <- c("Constant" = "(Intercept)",
-                  "No. Bedrooms" = "num_bedroom",
-                  'No. Bathrooms' = 'num_bathroom',
-                  "Living Area (sqm)" = "area_live_finished",
-                  'Tub or Spa' = 'flag_tub_or_spa',
-                  'Lot Size' = 'area_lot',
-                  'Age of Building' = 'age',
-                  'Fireplace' = 'flag_fireplace')
+  export_summs(hedonic_build_robust,
+               hedonic_build_fact_robust,
+               number_format = "%.3f",
+               file.name = "2016building.docx", to.file = 'docx')
   
-  
-  export_summs(hedonic_build, file.name = "2016building.docx", coefs = coef_names,
-               to.file = 'docx')
-
-}
+  export_summs(hedonic_total_robust,
+               hedonic_total_fact_robust,
+               number_format = "%.3f",
+               file.name = "2016total.docx", to.file = 'docx',
+               scale = FALSE, robust = TRUE)
+#}
 
 ## Advanced Algorithms --------------------------------
 library(xgboost)
