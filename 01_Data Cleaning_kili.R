@@ -164,6 +164,7 @@ for (i in c(1,2)) {
   barplot(sorted, cex.names = 0.5, las = 2)
   abline(v=35, col="red")
   title(main = '% NAs in 2017 Data')
+  ggsave("2017NAs.jpeg", height = 7, width = 6, dpi=700)
   
   
   # define and select hedonics (<0.2 NAs or <0.4 NAs)
@@ -202,35 +203,41 @@ for (i in c(1,2)) {
   
   sample <- sample_n(house_only16, 100000)
   
+  
   # plot bedroom vs tax
   ggplot(data = sample, aes(x = num_bedroom, y = log(num_tax_building))) +
     geom_point() + 
-    ggtitle("2016 House Price vs # bedrooms, Random subset of 100k") +
+    ggtitle("2017 House Price vs # bedrooms, Random subset of 100k") +
     theme_bw()
+  ggsave("2017bed.jpeg", height = 7, width = 6, dpi=700)
   
   # plot bedroom vs tax
   ggplot(data =  sample, aes(x = num_bathroom, y = log(num_tax_building))) +
     geom_point() + 
-    ggtitle("2016 House Price vs # bathrooms, Random subset of 100k") +
+    ggtitle("2017 House Price vs # bathrooms, Random subset of 100k") +
     theme_bw()
+  ggsave("2017bath.jpeg", height = 7, width = 6, dpi=700)
   
   # plot size vs tax
   ggplot(data = sample, aes(x = area_live_finished, y = (num_tax_building))) +
     geom_point() +
-    ggtitle("2016 House Price vs living area, Random subset of 100k") +
+    ggtitle("2017 House Price vs living area, Random subset of 100k") +
     theme_bw()
+  ggsave("2017area.jpeg", height = 7, width = 6, dpi=700)
 
   # plot age vs tax
   ggplot(data = sample, aes(x = age, y = (log(num_tax_building)))) +
     geom_point() +
-    ggtitle("2016 House Price vs Age, Random subset of 100k") +
+    ggtitle("2017 House Price vs Age, Random subset of 100k") +
     theme_bw()
+  ggsave("2017age.jpeg", height = 7, width = 6, dpi=700)
   
   # plot area_lot vs tax
   ggplot(data = sample, aes(x = area_lot, y = (num_tax_building))) +
     geom_point() +
-    ggtitle("2016 House Price vs lot size, Random subset of 100k") +
+    ggtitle("2017 House Price vs lot size, Random subset of 100k") +
     theme_bw()
+  ggsave("2017lot.jpeg", height = 7, width = 6, dpi=700)
   
   # some filtering of outliers
   
@@ -310,7 +317,7 @@ for (i in c(1,2)) {
                number_format = "%.3f",
                file.name = "2016total.docx", to.file = 'docx',
                scale = FALSE, robust = TRUE)
-#}
+}
 
 ## Advanced Algorithms --------------------------------
 library(xgboost)
