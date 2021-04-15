@@ -298,6 +298,7 @@ for (i in c(1,2)) {
   
   summary(hedonic_total_fact)
   hedonic_total_fact_robust <- coeftest(hedonic_total_fact, vcov = vcovHC(hedonic_total_fact, type = "HC0"))
+  bptest(hedonic_total_fact)
   
   # build nice regression table
   
@@ -309,12 +310,12 @@ for (i in c(1,2)) {
   export_summs(hedonic_build_robust,
                hedonic_build_fact_robust,
                number_format = "%.3f",
-               file.name = "2016building.docx", to.file = 'docx')
+               file.name = "2017building.docx", to.file = 'docx')
   
   export_summs(hedonic_total_robust,
                hedonic_total_fact_robust,
                number_format = "%.3f",
-               file.name = "2016total.docx", to.file = 'docx',
+               file.name = "2017total.docx", to.file = 'docx',
                scale = FALSE, robust = TRUE)
 }
 
