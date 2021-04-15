@@ -8,6 +8,12 @@ library(data.table)
 library(dplyr)
 library(tidyverse)
 
+library(keras)
+library(tfruns)        # for additional grid search & model training functions
+library(tfestimators)  # provides grid search & model training interface
+
+# SETUP ------------------------------------------------------
+
 rm(list=ls())
 
 house_only16_mv <- fread('./Data/house_only16_mv.csv', drop = 'V1')
@@ -45,10 +51,8 @@ for (i in colnames(house_only16_mv)) {
   }
 }
 
-str(house_only16_mv)
 
-
-### PART 1: DATA PREPROCESSING ###--------------------------------------
+# PART 1: DATA PREPROCESSING ###--------------------------------------
 
 # select the dataframe
 data = na.omit(house_only16_mv)
@@ -62,7 +66,7 @@ smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
 train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 
 # features we want to omit for the model 
-omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor')
+omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor', 'build_land_prop')
 
 # Split the data into train and test
 train16 <- data[train_ind,]
@@ -88,3 +92,40 @@ sparse_matrix_train@Dimnames[[2]]
 # Create a dense matrix
 dtrain <- xgb.DMatrix(data = sparse_matrix_train, label = output_vector)
 dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
+
+
+
+
+
+# Import MNIST training data
+mnist <- dslabs::read_mnist()
+mnist_x <- mnist$train$images
+mnist_y <- mnist$train$labels
+
+# Rename columns and standardize feature values
+colnames(mnist_x) <- paste0("V", 1:ncol(mnist_x))
+mnist_x <- mnist_x / 255
+
+# One-hot encode response
+mnist_y <- to_categorical(mnist_y, 10)
+
+
+# MODEL ---------------------
+
+model <- keras_model_sequential() %>%
+  layer_dense(units = 128, input_shape = ncol(mnist_x)) %>%
+  layer_dense(units = 64) %>%
+  layer_dense(units = 10)
+
+
+
+
+
+
+
+
+
+
+
+
+
