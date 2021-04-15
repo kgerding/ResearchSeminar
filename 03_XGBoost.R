@@ -21,6 +21,7 @@ library(data.table)
 library(dplyr)
 library(tidyverse)
 
+setwd('/Users/tgraf/Google Drive/Uni SG/Master/Research Seminar /Repository')
 rm(list=ls())
 
 house_only16_mv <- fread('./Data/house_only16_mv.csv', drop = 'V1')
