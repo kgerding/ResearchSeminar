@@ -19,7 +19,7 @@ library(vip)
 rm(list=ls())
 
 # Reading data
-data <- house_only16[1:1000,]
+data <- house_only16
 
 # Training data
 smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size

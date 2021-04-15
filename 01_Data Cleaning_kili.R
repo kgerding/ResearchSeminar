@@ -42,7 +42,7 @@ colnames(quality_id) <- c('type_quality', 'quality_factor')
 
 ### PART 1: DATA INSPECTION ----------------------------------------------------
 
-#all_data <- list(prices2016, prices2017)
+all_data <- list(prices2016, prices2017)
 
 for (i in c(1,2)) {
 
@@ -163,8 +163,7 @@ for (i in c(1,2)) {
   sorted <- rev(sort(count_nas))
   barplot(sorted, cex.names = 0.5, las = 2)
   abline(v=35, col="red")
-  title(main = '% NAs in 2017 Data')
-  ggsave("2017NAs.jpeg", height = 7, width = 6, dpi=700)
+  title(main = '% NAs in 2016 Data')
   
   
   # define and select hedonics (<0.2 NAs or <0.4 NAs)
@@ -207,37 +206,37 @@ for (i in c(1,2)) {
   # plot bedroom vs tax
   ggplot(data = sample, aes(x = num_bedroom, y = log(num_tax_building))) +
     geom_point() + 
-    ggtitle("2017 House Price vs # bedrooms, Random subset of 100k") +
+    ggtitle("2016 House Price vs # bedrooms, Random subset of 100k") +
     theme_bw()
-  ggsave("2017bed.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2016bed.jpeg", height = 7, width = 6, dpi=700)
   
   # plot bedroom vs tax
   ggplot(data =  sample, aes(x = num_bathroom, y = log(num_tax_building))) +
     geom_point() + 
-    ggtitle("2017 House Price vs # bathrooms, Random subset of 100k") +
+    ggtitle("2016 House Price vs # bathrooms, Random subset of 100k") +
     theme_bw()
-  ggsave("2017bath.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2016bath.jpeg", height = 7, width = 6, dpi=700)
   
   # plot size vs tax
   ggplot(data = sample, aes(x = area_live_finished, y = (num_tax_building))) +
     geom_point() +
-    ggtitle("2017 House Price vs living area, Random subset of 100k") +
+    ggtitle("2016 House Price vs living area, Random subset of 100k") +
     theme_bw()
-  ggsave("2017area.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2016area.jpeg", height = 7, width = 6, dpi=700)
 
   # plot age vs tax
   ggplot(data = sample, aes(x = age, y = (log(num_tax_building)))) +
     geom_point() +
-    ggtitle("2017 House Price vs Age, Random subset of 100k") +
+    ggtitle("2016 House Price vs Age, Random subset of 100k") +
     theme_bw()
-  ggsave("2017age.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2016age.jpeg", height = 7, width = 6, dpi=700)
   
   # plot area_lot vs tax
   ggplot(data = sample, aes(x = area_lot, y = (num_tax_building))) +
     geom_point() +
-    ggtitle("2017 House Price vs lot size, Random subset of 100k") +
+    ggtitle("2016 House Price vs lot size, Random subset of 100k") +
     theme_bw()
-  ggsave("2017lot.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2016lot.jpeg", height = 7, width = 6, dpi=700)
   
   # some filtering of outliers
   
@@ -260,7 +259,7 @@ for (i in c(1,2)) {
   
   # simple regression of building value
   hedonic_build <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
-                  flag_tub_or_spa + age + flag_fireplace #+ prop_living + build_land_prop
+                  flag_tub_or_spa + log(age) + flag_fireplace #+ prop_living + build_land_prop
                   ,data = house_only16)
   
   summary(hedonic_build)
@@ -270,7 +269,7 @@ for (i in c(1,2)) {
   
   # simple regression of total value
   hedonic_total <- lm(logtotal ~ num_bathroom + num_bedroom +  
-                  flag_tub_or_spa + log(area_lot) + age + flag_fireplace #+ prop_living + build_land_prop
+                  flag_tub_or_spa + log(area_lot) + log(age) + flag_fireplace #+ prop_living + build_land_prop
                   ,
                   data = house_only16)
   
@@ -282,7 +281,7 @@ for (i in c(1,2)) {
   # lm of building value with factors
   
   hedonic_build_fact <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
-                             flag_tub_or_spa + age + flag_fireplace #+ prop_living + build_land_prop
+                             flag_tub_or_spa + log(age) + flag_fireplace #+ prop_living + build_land_prop
                            + factor + num_unit + quality_factor + heating_factor
                            , 
                            data = house_only16_mv)
@@ -293,7 +292,7 @@ for (i in c(1,2)) {
   
   # lm of building value with factors
   hedonic_total_fact <- lm(logtotal ~ num_bathroom + num_bedroom +  
-                             flag_tub_or_spa + log(area_lot) + age + flag_fireplace #+ prop_living + build_land_prop
+                             flag_tub_or_spa + log(area_lot) + log(age) + flag_fireplace #+ prop_living + build_land_prop
                            + factor + num_unit + quality_factor + heating_factor
                            , data = house_only16_mv) 
   
