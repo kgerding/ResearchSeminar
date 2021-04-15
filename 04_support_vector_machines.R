@@ -78,54 +78,19 @@ test_vector = as.matrix(log(test16[,'num_tax_total']))
 
 #omit variables and convert to numeric again
 train16 <- train16 %>% select(-omit)
-#train16 <- data.frame(sapply(train16, as.numeric))
 test16 <- test16 %>% select(-omit)
-#test16 <- data.frame(sapply(test16, as.numeric))
 
-# convert categorical factor into dummy variables using one-hot encoding
-sparse_matrix_train <- sparse.model.matrix(log(num_tax_total)~.-1, data = train16)
-sparse_matrix_test <- sparse.model.matrix(log(num_tax_total)~.-1, data = test16)
+# # convert categorical factor into dummy variables using one-hot encoding
+# sparse_matrix_train <- sparse.model.matrix(log(num_tax_total)~.-1, data = train16)
+# sparse_matrix_test <- sparse.model.matrix(log(num_tax_total)~.-1, data = test16)
+# 
+# # check the dimnames crated by the one-hot encoding
+# sparse_matrix_train@Dimnames[[2]]
 
-# check the dimnames crated by the one-hot encoding
-sparse_matrix_train@Dimnames[[2]]
+# # Create a dense matrix
 
-# Create a dense matrix
-dtrain <- xgb.DMatrix(data = sparse_matrix_train, label = output_vector)
-dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
-
-
-
-
-
-# Import MNIST training data
-mnist <- dslabs::read_mnist()
-mnist_x <- mnist$train$images
-mnist_y <- mnist$train$labels
-
-# Rename columns and standardize feature values
-colnames(mnist_x) <- paste0("V", 1:ncol(mnist_x))
-mnist_x <- mnist_x / 255
-
-# One-hot encode response
-mnist_y <- to_categorical(mnist_y, 10)
+subset <- subset(train16, select = -num_tax_total)
+train16_transformed <- data.frame(model.matrix(~ . -1, subset))
 
 
 # MODEL ---------------------
-
-model <- keras_model_sequential() %>%
-  layer_dense(units = 128, input_shape = ncol(mnist_x)) %>%
-  layer_dense(units = 64) %>%
-  layer_dense(units = 10)
-
-
-
-
-
-
-
-
-
-
-
-
-
