@@ -2,19 +2,18 @@
 ### Support Vector Machines -----------------------------------
 #########################################################
 
-library(Matrix)
-library(mlr)
 library(data.table)
 library(dplyr)
 library(tidyverse)
+library(e1071) # for SVM
+library(tictoc) # to measure time elapsed
 
-library(keras)
-library(tfruns)        # for additional grid search & model training functions
-library(tfestimators)  # provides grid search & model training interface
+
 
 # SETUP ------------------------------------------------------
 
 rm(list=ls())
+setwd('/Users/tgraf/Google Drive/Uni SG/Master/Research Seminar /Repository')
 
 house_only16_mv <- fread('./Data/house_only16_mv.csv', drop = 'V1')
 
@@ -55,10 +54,10 @@ for (i in colnames(house_only16_mv)) {
 # PART 1: DATA PREPROCESSING ###--------------------------------------
 
 # select the dataframe
-data = na.omit(house_only16_mv)
+data_large = na.omit(house_only16_mv)
 
 # use only first 10'000
-data = data[1:10000,]
+data = data_large[1:10000,]
 
 ##set the seed to make your partition reproducible
 set.seed(123)
@@ -68,29 +67,81 @@ train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 # features we want to omit for the model 
 omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor', 'build_land_prop')
 
+
+# scale data
+data$area_live_finished <- log(data$area_live_finished)
+data$area_lot <- log(data$area_lot)
+data$age <- log(data$age)
+data$num_tax_total <- log(data$num_tax_total)
+
+
 # Split the data into train and test
 train16 <- data[train_ind,]
 test16 <- data[-train_ind, ]
 
 # define training label = dependent variable
-output_vector = as.matrix(log(train16[,'num_tax_total']))
-test_vector = as.matrix(log(test16[,'num_tax_total']))
+output_vector = as.matrix((train16[,'num_tax_total']))
+test_vector = as.matrix((test16[,'num_tax_total']))
 
 #omit variables and convert to numeric again
 train16 <- train16 %>% select(-omit)
 test16 <- test16 %>% select(-omit)
 
-# # convert categorical factor into dummy variables using one-hot encoding
-# sparse_matrix_train <- sparse.model.matrix(log(num_tax_total)~.-1, data = train16)
-# sparse_matrix_test <- sparse.model.matrix(log(num_tax_total)~.-1, data = test16)
-# 
-# # check the dimnames crated by the one-hot encoding
-# sparse_matrix_train@Dimnames[[2]]
-
-# # Create a dense matrix
-
-subset <- subset(train16, select = -num_tax_total)
-train16_transformed <- data.frame(model.matrix(~ . -1, subset))
+# Create a sparse matrix
+train16_sparse <- data.frame(model.matrix(~ . -1, train16))
+test16_sparse <- data.frame(model.matrix(~ . -1, test16))
 
 
 # MODEL ---------------------
+
+#Regression with SVM
+tic()
+modelsvm = svm(num_tax_total ~ ., data = train16_sparse,
+               type = 'eps-regression',
+               kernel = 'linear', 
+               scale = FALSE, # don't scale data as we already did
+               shrinking = TRUE, # shrink variables
+               cross = 5) # cross-validation)
+toc()
+
+# simple regression
+model_lm = lm(num_tax_total ~ ., data = (train16_sparse))
+pred_lm <- predict(model_lm, (test16_sparse))
+
+# Predict using simple regression
+rmse_lm <- sqrt(mean((pred_lm - test_vector)^2))
+r2_lm <- 1 - (sum((test_vector-pred_lm)^2) / sum((test_vector-mean(pred_lm))^2) )
+
+# Predict using SVM regression
+pred_svm = predict(modelsvm, test16_sparse)
+rmse_svr <- sqrt(mean((pred_svm - output_vector)^2))
+r2_svr <- 1 - (sum((test_vector-pred_svm)^2) / sum((test_vector-mean(pred_svm))^2) )
+
+
+## Tuning SVR model by varying values of maximum allowable error and cost parameter
+#Tune the SVM model
+tic()
+OptModelsvm=tune(svm, num_tax_total ~ ., data = train16_sparse,
+                 type = 'eps-regression', 
+                 kernel = 'linear', 
+                 scale = FALSE,
+                 ranges=list(elsilon=seq(0,1,0.1), 
+                             cost=seq(1,101, 10)))
+toc()
+
+
+#Print optimum value of parameters
+print(OptModelsvm)
+
+#Plot the performance of SVM Regression model
+plot(OptModelsvm)
+
+#Find out the best model
+BstModel=OptModelsvm$best.model
+
+#Predict Y using best model
+pred_svm = predict(BstModel, test16_sparse)
+
+rmse_svr <- sqrt(mean((pred_svm - output_vector)^2))
+r2_svr <- 1 - (sum((test_vector-pred_svm)^2) / sum((test_vector-mean(pred_svm))^2) )
+
