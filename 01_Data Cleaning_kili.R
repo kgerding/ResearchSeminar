@@ -320,57 +320,6 @@ for (i in c(1,2)) {
 }
 
 ## Advanced Algorithms --------------------------------
-library(xgboost)
-library(Matrix)
-
-prep_xgboost <- function (data){
-  ## set the seed to make your partition reproducible
-  set.seed(123)
-  smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
-  train_ind <- sample(seq_len(nrow(data)), size = smp_size)
-  
-  # featues we want to omit for the model 
-  omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor')
-  # note: Xgboost manages only numeric vectors.
-  
-  # Split the data into train and test
-  train16 <- data[train_ind,]
-  train16 <- train16 %>% select(-omit)
-  train16 <- as.matrix(train16)
-  dtrain <- xgb.DMatrix(data = train16, label= as.matrix(train16$num_tax_total))
-  
-  test16 <- data[-train_ind, ]
-  test16 <- test16 %>% select(-omit)
-  test16 <- as.matrix(test16)
-  
-  # convert categorical factor into one-hot encoding
-  sparse_matrix <- sparse.model.matrix(num_tax_total~.-1, data = data)
-
-  # define training label = dependent variable
-  output_vector = as.matrix(trial1$num_tax_total)
-}
-
-
-
-bst <- xgboost(data = sparse_matrix, booster = "gbtree", label = output_vector, max.depth = 4,
-               eta = 1, nthread = 2, nrounds = 10, objective = "reg:linear")
-
-xgboost(data = train16, 
-        booster = "gbtree", 
-        objective = "binary:logistic", 
-        max.depth = 5, 
-        eta = 0.5, 
-        nthread = 2, 
-        nround = 2, 
-        min_child_weight = 1, 
-        subsample = 0.5, 
-        colsample_bytree = 1, 
-        num_parallel_tree = 1)
-
-
-# Bagging Predictor ------------------------------------------------------------
-
-
 
 # Spatial Regression -----------------------------------------------------------
 
