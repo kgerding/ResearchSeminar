@@ -172,15 +172,16 @@ testtask <- createDummyFeatures(obj = traintask)
 lrn <- makeLearner("regr.xgboost", predict.type = "response")
 lrn$par.vals <- list(objective="reg:squarederror",
                      eval_metric="rmse", 
-                     nrounds=100L)
+                     nrounds=100L, 
+                     eta = 0.1)
 
 # set parameter space
 params <- makeParamSet(makeDiscreteParam("booster", values = c("gbtree", "dart")), 
-                       makeIntegerParam("max_depth",lower = 3L,upper = 10L), 
-                       makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
-                       makeNumericParam("subsample",lower = 0.2,upper = 1), 
-                       makeNumericParam("colsample_bytree",lower = 0.1,upper = 1), 
-                       makeDiscreteParam("eta", values = c(0.05,0.1,0.2)))
+                       makeIntegerParam("max_depth",lower = 3L,upper = 10L)) 
+                       #makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
+                       #makeNumericParam("subsample",lower = 0.2,upper = 1), 
+                      # makeNumericParam("colsample_bytree",lower = 0.1,upper = 1), 
+                      # makeDiscreteParam("eta", values = c(0.05,0.1,0.2)))
 
 
 # set resampling strategy
@@ -215,18 +216,18 @@ mytune
 # take the parameters of mytune
 params <- list(booster = mytune$x$booster, 
                objective = "reg:squarederror",
-               eta=mytune$x$eta, # learning rate, between 0 and 1
+               eta=0.1, # learning rate, between 0 and 1
                gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
-               max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
-               min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
-               subsample= mytune$x$subsample, # number of observations per tree, typically between 0.5 - 0.8
-               colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
+               max_depth = mytune$x$max_depth) # max depth of trees, the more deep the more complex and overfitting
+               #min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
+               #subsample= mytune$x$subsample, # number of observations per tree, typically between 0.5 - 0.8
+               #colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
 
 # using cross-validation to find optimal nrounds parameter
 xgbcv <- xgb.cv(params = params,
                 data = dtrain, 
                 nrounds = 100L, 
-                nfold = 10,
+                nfold = 5,
                 showsd = T, # whether to show standard deviation of cv
                 stratified = F, 
                 print_every_n = 1, 
