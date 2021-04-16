@@ -19,6 +19,7 @@ library(vip)
 rm(list=ls())
 
 # Reading data
+house
 data <- house_only16
 
 # Training data
