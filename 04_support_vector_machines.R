@@ -57,7 +57,7 @@ for (i in colnames(house_only16_mv)) {
 data_large = na.omit(house_only16_mv)
 
 # use only first 10'000
-data = data_large[1:10000,]
+data = data_large[1:1000,]
 
 ##set the seed to make your partition reproducible
 set.seed(123)
@@ -93,16 +93,37 @@ test16_sparse <- data.frame(model.matrix(~ . -1, test16))
 
 
 # MODEL ---------------------
+library(LiblineaR)
 
 #Regression with SVM
 tic()
 modelsvm = svm(num_tax_total ~ ., data = train16_sparse,
                type = 'eps-regression',
-               kernel = 'linear', 
+               kernel = 'linear',
                scale = FALSE, # don't scale data as we already did
                shrinking = TRUE, # shrink variables
-               cross = 5) # cross-validation)
+               epsilon = 0.3, 
+               verbose = TRUE,
+               cost = 100,
+              cross = 5) # cross-validation
 toc()
+
+#Regression with SVM
+tic()
+modellbm = LiblineaR(target = output_vector, data = as.matrix(train16_sparse[,-8]),
+               type = 12, # support vector regression L2 regularized
+               kernel = 'linear',
+               epsilon = 0.3, 
+               verbose = TRUE, 
+               findC = TRUE,
+               cost = 100,
+               cross = 5) 
+toc()
+
+# Predict using SVM regression
+pred_svm = predict(modelsvm, test16_sparse)
+rmse_svr <- sqrt(mean((pred_svm - output_vector)^2))
+r2_svr <- 1 - (sum((test_vector-pred_svm)^2) / sum((test_vector-mean(pred_svm))^2) )
 
 # simple regression
 model_lm = lm(num_tax_total ~ ., data = (train16_sparse))
@@ -112,36 +133,35 @@ pred_lm <- predict(model_lm, (test16_sparse))
 rmse_lm <- sqrt(mean((pred_lm - test_vector)^2))
 r2_lm <- 1 - (sum((test_vector-pred_lm)^2) / sum((test_vector-mean(pred_lm))^2) )
 
-# Predict using SVM regression
-pred_svm = predict(modelsvm, test16_sparse)
-rmse_svr <- sqrt(mean((pred_svm - output_vector)^2))
-r2_svr <- 1 - (sum((test_vector-pred_svm)^2) / sum((test_vector-mean(pred_svm))^2) )
+
+## Tuning SVR model ---------------------------------------------------
+# by varying values of maximum allowable epsilon and cost parameter
+# tic()
+# OptModelsvm=tune(svm, num_tax_total ~ ., data = train16_sparse,
+#                  type = 'eps-regression', #e-insensitive loss regression
+#                  kernel = 'linear', 
+#                  scale = FALSE,
+#                  cross = 5,
+#                  epsilon = 0.3,
+#                  ranges=list(cost=c(0.01, 0.1, 1, 10, 100)))
+# toc()
+# 
+# 
+# #Print optimum value of parameters
+# print(OptModelsvm)
+# 
+# #Plot the performance of SVM Regression model
+# plot(OptModelsvm)
+# 
+# #Find out the best model
+# BstModel=OptModelsvm$best.model
 
 
-## Tuning SVR model by varying values of maximum allowable error and cost parameter
-#Tune the SVM model
-tic()
-OptModelsvm=tune(svm, num_tax_total ~ ., data = train16_sparse,
-                 type = 'eps-regression', 
-                 kernel = 'linear', 
-                 scale = FALSE,
-                 ranges=list(elsilon=seq(0,1,0.1), 
-                             cost=seq(1,101, 10)))
-toc()
-
-
-#Print optimum value of parameters
-print(OptModelsvm)
-
-#Plot the performance of SVM Regression model
-plot(OptModelsvm)
-
-#Find out the best model
-BstModel=OptModelsvm$best.model
-
-#Predict Y using best model
-pred_svm = predict(BstModel, test16_sparse)
-
-rmse_svr <- sqrt(mean((pred_svm - output_vector)^2))
-r2_svr <- 1 - (sum((test_vector-pred_svm)^2) / sum((test_vector-mean(pred_svm))^2) )
+# TESTING ---------------------------------------------
+# 
+# #Predict Y using best model
+# pred_svm = predict(BstModel, test16_sparse)
+# 
+# rmse_svr <- sqrt(mean((pred_svm - output_vector)^2))
+# r2_svr <- 1 - (sum((test_vector-pred_svm)^2) / sum((test_vector-mean(pred_svm))^2))
 
