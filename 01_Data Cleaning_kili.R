@@ -50,7 +50,7 @@ for (i in c(1,2)) {
   
   i <- all_data[[1]]
   
-  p2016 <- i %>% rename(
+  p2016 <- prices2017 %>% rename(
     id_parcel = parcelid,
     year_built = yearbuilt,
     area_basement = basementsqft,
@@ -256,6 +256,8 @@ for (i in c(1,2)) {
   house_only16$logtotal <- log(house_only16$num_tax_total)
   house_only16_mv$logbuild <- log(house_only16_mv$num_tax_building)
   house_only16_mv$logtotal <- log(house_only16_mv$num_tax_total)
+  
+  write.csv(house_only16, file = 'house_only16.csv')
   
   # simple regression of building value
   hedonic_build <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
