@@ -7,7 +7,8 @@ library(dplyr)
 library(tidyverse)
 library(e1071) # for SVM
 library(tictoc) # to measure time elapsed
-
+library(SuperLearner)
+library(MASS)
 
 
 # SETUP ------------------------------------------------------
@@ -57,7 +58,7 @@ for (i in colnames(house_only16_mv)) {
 data_large = na.omit(house_only16_mv)
 
 # use only first 10'000
-data = data_large[1:1000,]
+data = data_large[1:10000,]
 
 ##set the seed to make your partition reproducible
 set.seed(123)
@@ -66,7 +67,6 @@ train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 
 # features we want to omit for the model 
 omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county', 'num_tax_building', 'num_tax_land', 'factor', 'build_land_prop')
-
 
 # scale data
 data$area_live_finished <- log(data$area_live_finished)
@@ -80,20 +80,74 @@ train16 <- data[train_ind,]
 test16 <- data[-train_ind, ]
 
 # define training label = dependent variable
-output_vector = as.matrix((train16[,'num_tax_total']))
-test_vector = as.matrix((test16[,'num_tax_total']))
+output_vector = as.matrix(log(train16[,'num_tax_total']))
+test_vector = as.matrix(log(test16[,'num_tax_total']))
 
 #omit variables and convert to numeric again
-train16 <- train16 %>% select(-omit)
-test16 <- test16 %>% select(-omit)
+train16 <- train16 %>% dplyr::select(-omit)
+test16 <- test16 %>% dplyr::select(-omit)
 
 # Create a sparse matrix
-train16_sparse <- data.frame(model.matrix(~ . -1, train16))
-test16_sparse <- data.frame(model.matrix(~ . -1, test16))
+train16_sparse <- data.frame(model.matrix(num_tax_total~ . -1, train16))
+test16_sparse <- data.frame(model.matrix(num_tax_total~ . -1, test16))
+
+summary(train16_sparse)
 
 
 # MODEL --------------------------------------------------
 
+listWrappers() #SL.glmn SL.randomForest, SL.xgboost, SL.svm
+set.seed(123)
+
+## you might need to install ranger for Random Forest
+# install.packages('ranger')
+
+# The beauty of SuperLearner is that, if a model does not fit well or contribute much, it is just weighted to zero! 
+#There is no need to remove it and retrain unless you plan on retraining the model in the future.
+layer1.model <- SuperLearner(Y = output_vector,
+                             X = train16_sparse,
+                             family = gaussian(),
+                             method = "method.NNLS", # non-negative least sqaures
+                             verbose = TRUE,
+                             cvControl = list(V = 2L),
+                             SL.library=list("SL.glm", 
+                                             "SL.ranger", # Ranger algorithm, which is a faster implementation of the famous Random Forest.
+                                             "SL.xgboost", 
+                                             "SL.svm", 
+                                             "SL.ipredbagg"))
+
+summary(layer1.model)
+
+# choosing the right algorithms using cross-validation
+scv.model <- CV.SuperLearner(Y = output_vector,
+                             X = train16_sparse,
+                             family = gaussian(),
+                             verbose = TRUE,
+                             parallel = 'multicore',
+                             method = "method.NNLS", # non-negative least sqaures
+                             V = 5,
+                             SL.library=list("SL.glm", 
+                                             "SL.ranger", 
+                                             "SL.xgboost", 
+                                             "SL.svm", 
+                                             "SL.ipredbag"))
+summary(cv.model)
+plot(cv.model)
+
+
+# specifying the model with tuning
+SL.rf.tune <- function(...){
+  SL.ranger(..., num.trees=1000, mtry=2)
+}
+
+SL.i.tune <- function(...){
+  SL.ipredbagg(..., nbagg=250)
+}
+
+# making a prediction with the stacked model
+predictions <- predict.SuperLearner(layer1.model, newdata = test16_sparse)
+head(predictions$pred) # overall ensemble prediction
+head(predictions$library.predict) # individual library predictions
 
 
 
