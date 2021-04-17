@@ -1,0 +1,14 @@
+﻿AirConditioningTypeID,AirConditioningDesc
+1,Central
+2,Chilled Water
+3,Evaporative Cooler
+4,Geo Thermal
+5,None
+6,Other
+7,Packaged AC Unit
+8,Partial
+9,Refrigeration
+10,Ventilation
+11,Wall Unit
+12,Window Unit
+13,Yes

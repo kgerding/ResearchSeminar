@@ -73,20 +73,28 @@ for (i in colnames(data)) {
   }
 }
 
+# omit variables
+omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county',
+          'num_tax_land', 'factor','num_tax_total', 'build_land_prop', 'prop_living')
+
+# Split the data into train and test
+data <- data%>% select(-omit)
+
 # select the dataframe
 data = na.omit(data)
 
-
 # use only first 10'000
-data = data[1:10000,]
+#data = data[1:10000,]
 
 # Training data
+set.seed(123)
 smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
 train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 
 # Split the data into train and test
 train16 <- data[train_ind,]
 test16 <- data[-train_ind, ]
+
 
 ### PART 2: Prediction of linear Model ----------------------------------------
 
@@ -137,20 +145,6 @@ hedonic_fact_rmse
 
 ### PART 3: Prediction of bagging Model ----------------------------------------
 
-# omit variables
-omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county',
-          'num_tax_land', 'factor','num_tax_total', 'build_land_prop', 'prop_living')
-
-# Split the data into train and test
-train16 <- data[train_ind,]
-train16 <- train16 %>% select(-omit)
-
-test16 <- data[-train_ind, ]
-test16 <- test16 %>% select(-omit)
-
-train16 <- na.omit(train16)
-test16 <- na.omit(test16)
-
 # set seed for replicability
 set.seed(123)
 
@@ -158,7 +152,7 @@ set.seed(123)
 price_bagging <- ipred::bagging(
   formula = logbuild ~ num_bathroom + num_bedroom + logarea + logage + flag_tub_or_spa + flag_fireplace,
   data = train16,
-  nbagg = 100,  
+  nbagg = 60,  
   coob = TRUE,
   control = rpart.control(minsplit = 2, cp = 0)
 )
@@ -203,7 +197,7 @@ for (i in seq_along(ntree)) {
   rmse[i] <- model$err
 }
 
-plot(ntree, rmse, type = 'l', lwd = 2)
+plot(ntree, rmse, type = 'l', lwd = 2, main = "RMSE vs. Number of N-Trees in a Bagging Model")
 abline(v = 25, col = "red", lty = "dashed")
 
 ### PART 3: Prediction of bagging Model with Cross Validation ------------------

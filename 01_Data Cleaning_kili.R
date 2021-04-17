@@ -42,15 +42,8 @@ colnames(quality_id) <- c('type_quality', 'quality_factor')
 
 ### PART 1: DATA INSPECTION ----------------------------------------------------
 
-all_data <- list(prices2016, prices2017)
-
-for (i in c(1,2)) {
-
-  ## Step 0: Rename the Data
-  
-  i <- all_data[[1]]
-  
-  p2016 <- prices2017 %>% rename(
+# change prices to respective year 2016 or 2017
+  p2016 <- prices2016 %>% rename(
     id_parcel = parcelid,
     year_built = yearbuilt,
     area_basement = basementsqft,
@@ -147,17 +140,26 @@ for (i in c(1,2)) {
   
   # filter no baths and no bedrooms, we aim to separate properties with buildings
   # and properties without buildings
-  property_only16 <- p2016[(p2016$num_bathroom == 0 & p2016$num_bedroom == 0),]
   house_only16 <- p2016[(p2016$num_bathroom > 0 | p2016$num_bedroom > 0),]
   
   ## Step 4: Eliminate columns with more than 20% NAs -------------------
   
-  # first remove NAs of most important columns to see an more workable data set
-  # delete 7126 rows
-  house_only16 <- house_only16[(na.omit(house_only16$num_bathroom) &
-                                  na.omit(house_only16$num_bedroom) &
-                                  na.omit(house_only16$num_tax_total) ), ]
+  test <- p2016[!is.na(p2016$num_garage),]
+  test <- test[!is.na(test$num_tax_building),]
+  test <- test[!is.na(test$area_live_finished),]
+  test <- test[!is.na(test$num_bathroom),]
+  test <- test[!is.na(test$num_bedroom),]
   
+  hist.data.frame(test[,c('')])
+  
+  
+  
+  # first remove NAs of most important columns to see an more workable data set
+  house_only16 <- house_only16[na.omit(house_only16$num_tax_building),]
+  house_only16 <- house_only16[na.omit(house_only16$area_live_finished),]
+  house_only16 <- house_only16[na.omit(house_only16$num_bathroom),]
+  house_only16 <- house_only16[na.omit(house_only16$num_bedroom),]
+
   # quick plot
   count_nas <- colSums(is.na(house_only16))/nrow(house_only16)
   sorted <- rev(sort(count_nas))
@@ -257,7 +259,7 @@ for (i in c(1,2)) {
   house_only16_mv$logbuild <- log(house_only16_mv$num_tax_building)
   house_only16_mv$logtotal <- log(house_only16_mv$num_tax_total)
   
-  write.csv(house_only16, file = 'house_only16.csv')
+  write.csv(house_only16_mv, file = 'house_only16_mv.csv')
   
   # simple regression of building value
   hedonic_build <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
