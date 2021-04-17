@@ -261,10 +261,8 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   ## Step 5: Eliminate properties without buildings and very low values ----------
   
   # drop building values below 50'000
-  hist(house_only16$num_tax_building[house_only16$num_tax_building < 500000],
-       breaks = 100)
-  
-  house_only16 <- house_only16[house_only16$num_tax_total >= 50000,]
+  hist(log(house_only16$num_tax_building),breaks = 100)
+
   
   ## Step 5: Plot the variable relationships and remove outliers -------------------------------
   
@@ -283,35 +281,37 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   ggsave("2016bath.jpeg", height = 7, width = 6, dpi=700)
   
   # plot size vs tax
-  ggplot(data = house_only2016, aes(x = area_live_finished, y = (num_tax_building))) +
+  ggplot(data = house_only16, aes(x = area_live_finished, y = (num_tax_building))) +
     geom_point() +
     ggtitle("2016 House Price vs living area") +
     theme_bw()
   ggsave("2016area.jpeg", height = 7, width = 6, dpi=700)
 
   # plot age vs tax
-  ggplot(data = sample, aes(x = age, y = (log(num_tax_building)))) +
+  ggplot(data = house_only16, aes(x = age, y = (log(num_tax_building)))) +
     geom_point() +
-    ggtitle("2016 House Price vs Age, Random subset of 100k") +
+    ggtitle("2016 House Price vs Age") +
     theme_bw()
   ggsave("2016age.jpeg", height = 7, width = 6, dpi=700)
   
   # plot area_lot vs tax
-  ggplot(data = sample, aes(x = area_lot, y = (num_tax_building))) +
+  ggplot(data = house_only16, aes(x = area_lot, y = num_tax_building)) +
     geom_point() +
-    ggtitle("2016 House Price vs lot size, Random subset of 100k") +
+    ggtitle("2016 House Price vs lot size") +
     theme_bw()
   ggsave("2016lot.jpeg", height = 7, width = 6, dpi=700)
   
   # some filtering of outliers
   
   # we need to filter the outlier of high area_live finished: 
-  house_only16 <- house_only16[house_only16$area_live_finished < 58000,]
-  house_only16_mv <- house_only16_mv[house_only16_mv$area_live_finished < 58000,]
+  house_only16 <- house_only16[house_only16$num_tax_building < 7500000,]
+  house_only16 <- house_only16[house_only16$age < 150,]
+  
+  # we need to filter the outlier of high area_live finished: 
+  house_only16 <- house_only16[house_only16$area_live_finished < 20000,]
   
   # we need to filter the outlier of high area_lot but very low building structure value 
-  house_only16 <- house_only16[house_only16$area_lot < 2e6,]
-  house_only16_mv <- house_only16_mv[house_only16_mv$area_lot < 2e6,]
+  house_only16 <- house_only16[house_only16$area_lot < 100000,]
   
   ### PART 2 ALGORITHMS ###---------------------------------------------------
   
