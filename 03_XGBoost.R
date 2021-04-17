@@ -71,7 +71,7 @@ str(house_only16_mv)
 data = na.omit(house_only16_mv)
 
 # use only first 10'000
-#data = data[1:10000,]
+data = data[1:10000,]
 
 ##set the seed to make your partition reproducible
 set.seed(123)
@@ -110,46 +110,46 @@ dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
 ### PART 2: XGBOOST Training ###  -----------------------------
 
 # # Model 1: Default parameters  -----------------------------
-# #Let's start with a standard model and parameters and start optimizing the parameters later from here
-# 
-# params <- list(booster = "gbtree", 
-#                objective = "reg:squarederror",
-#                eta=0.3, # learning rate, between 0 and 1
-#                gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
-#                max_depth=6, # max depth of trees, the more deep the more complex and overfitting
-#                min_child_weight=1, # min number of instances per child node, blocks potential feature interaction and thus overfitting
-#                subsample=1, # number of observations per tree, typically between 0.5 - 0.8
-#                colsample_bytree=1) # number of variables per tree, typically between 0.5 - 0.9
-# 
-# # using cross-validation to find optimal nrounds parameter
-# xgbcv <- xgb.cv(params = params,
-#                 data = dtrain, 
-#                 nrounds = 100, 
-#                 nfold = 10,
-#                 showsd = T, # whether to show standard deviation of cv
-#                 stratified = F, 
-#                 print_every_n = 1, 
-#                 early_stopping_rounds = 20, # stop if we don't see much improvement
-#                 maximize = F, 
-#                 verbose = 2)
-# 
-# # Result of best iteration
-# xgbcv$best_iteration
-# 
-# # first training with optimized nround
-# xgb1 <- xgb.train(params = params, 
-#                   data = dtrain, 
-#                   nrounds = xgbcv$best_iteration, 
-#                   watchlist = list(test = dtest, train = dtrain), 
-#                   early_stopping_rounds = 20, 
-#                   maximize = F, 
-#                   eval_metric = "rmse"
-# )
-# 
-# # model prediction
-# xgb1_pred <- predict(xgb1, dtest)
-# rmse_xgb1 <- sqrt(mean((xgb1_pred - test_vector)^2))
-# r2_xgb1 <- 1 - sum((test_vector-xgb1_pred)^2) / sum((test_vector-mean(xgb1_pred))^2)
+#Let's start with a standard model and parameters and start optimizing the parameters later from here
+
+params <- list(booster = "gbtree",
+               objective = "reg:squarederror",
+               eta=0.3, # learning rate, between 0 and 1
+               gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
+               max_depth=6, # max depth of trees, the more deep the more complex and overfitting
+               min_child_weight=1, # min number of instances per child node, blocks potential feature interaction and thus overfitting
+               subsample=1, # number of observations per tree, typically between 0.5 - 0.8
+               colsample_bytree=1) # number of variables per tree, typically between 0.5 - 0.9
+
+# using cross-validation to find optimal nrounds parameter
+xgbcv <- xgb.cv(params = params,
+                data = dtrain,
+                nrounds = 100,
+                nfold = 10,
+                showsd = T, # whether to show standard deviation of cv
+                stratified = F,
+                print_every_n = 1,
+                early_stopping_rounds = 20, # stop if we don't see much improvement
+                maximize = F,
+                verbose = 2)
+
+# Result of best iteration
+xgbcv$best_iteration
+
+# first training with optimized nround
+xgb1 <- xgb.train(params = params,
+                  data = dtrain,
+                  nrounds = xgbcv$best_iteration,
+                  watchlist = list(test = dtest, train = dtrain),
+                  early_stopping_rounds = 20,
+                  maximize = F,
+                  eval_metric = "rmse"
+)
+
+# model prediction
+xgb1_pred <- predict(xgb1, dtest)
+rmse_xgb1 <- sqrt(mean((xgb1_pred - test_vector)^2))
+r2_xgb1 <- 1 - sum((test_vector-xgb1_pred)^2) / sum((test_vector-mean(xgb1_pred))^2)
 
 
 
@@ -340,7 +340,7 @@ comparison
 
 # plot the most important leaflets
 xgb.plot.multi.trees(feature_names = names(dtrain), 
-                     model = xgb2)
+                     model = xgb1)
 
 # Plot importance
 importance2 <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb2)
