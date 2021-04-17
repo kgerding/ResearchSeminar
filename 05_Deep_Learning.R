@@ -86,13 +86,6 @@ test_vector = as.matrix((test16[,'num_tax_total']))
 train16 <- train16 %>% select(-omit)
 test16 <- test16 %>% select(-omit)
 
-# # convert categorical factor into dummy variables using one-hot encoding
-# sparse_matrix_train <- sparse.model.matrix(log(num_tax_total)~.-1, data = train16)
-# sparse_matrix_test <- sparse.model.matrix(log(num_tax_total)~.-1, data = test16)
-# 
-# # check the dimnames crated by the one-hot encoding
-# sparse_matrix_train@Dimnames[[2]]
-
 # Create a dense matrix
 subset1 <- subset(train16, select = -num_tax_total)
 train16 <- as.matrix(model.matrix(~ . -1, subset1))

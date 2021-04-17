@@ -20,6 +20,9 @@ library(randomForest)
 library(data.table)
 library(dplyr)
 library(tidyverse)
+library(tictoc)
+
+tic()
 
 setwd('/Users/tgraf/Google Drive/Uni SG/Master/Research Seminar /Repository')
 rm(list=ls())
@@ -251,7 +254,20 @@ xgb2 <- xgb.train(params = params,
 # model prediction
 xgb2_pred <- predict(xgb2, dtest)
 rmse_xgb2 <- sqrt(mean((xgb2_pred - test_vector)^2))
-r2_xgb2 <- 1 - ( sum((test_vector-xgb2_pred)^2) / sum((test_vector-mean(xgb2_pred))^2) )
+r2_xgb2 <- 1 - ( sum((test_vector-xgb2_pred)^2) / sum((test_vector-mean(test_vector))^2) )
+
+str(xgb2_pred)
+
+# COMPARISON simple regression ----------------------------------
+train16_sparse <- data.frame(model.matrix(~ . -1, train16))
+test16_sparse <- data.frame(model.matrix(~ . -1, test16))
+
+model_lm = lm(num_tax_total ~ ., data = data.frame(train16_sparse))
+pred_lm <- log(predict(model_lm, (test16_sparse)))
+
+# Predict using simple regression
+rmse_lm <- sqrt(mean((pred_lm - test_vector)^2))
+r2_lm <- 1 - (sum((test_vector-pred_lm)^2) / sum((test_vector-mean(test_vector))^2) )
 
 
 # MODEL 3 - linear boosting ---------------------------
@@ -402,4 +418,4 @@ xgb.save(xgb2, "xgboost.model")
 # # load xgboosting model
 # xgb <- xgb.load("xgboost.model")
 
-
+toc()

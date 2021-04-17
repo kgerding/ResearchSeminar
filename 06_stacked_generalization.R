@@ -12,7 +12,7 @@ library(tictoc) # to measure time elapsed
 
 # SETUP ------------------------------------------------------
 
-rm(list=ls())dd
+rm(list=ls())
 setwd('/Users/tgraf/Google Drive/Uni SG/Master/Research Seminar /Repository')
 
 house_only16_mv <- fread('./Data/house_only16_mv.csv', drop = 'V1')
@@ -90,3 +90,10 @@ test16 <- test16 %>% select(-omit)
 # Create a sparse matrix
 train16_sparse <- data.frame(model.matrix(~ . -1, train16))
 test16_sparse <- data.frame(model.matrix(~ . -1, test16))
+
+
+# MODEL --------------------------------------------------
+
+
+
+
