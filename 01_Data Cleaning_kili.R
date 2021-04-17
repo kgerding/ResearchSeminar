@@ -22,6 +22,7 @@ library(lmtest)
 library(sandwich)
 
 
+
 rm(list=ls())
 
 ### Read in Data ---------------------------------------------------------------
@@ -216,7 +217,7 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   coords <- cbind(house_only16$loc_latitude/1000000,house_only16$loc_longitude/1000000)
   
   #define resolution of H3 indexes
-  resolution <- 6
+  resolution <- 5
   
   # Convert a lat/lng point to a hexagon index at resolution 7
   h3_index <- geo_to_h3(coords, resolution)
@@ -243,9 +244,16 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   
   map
   
+  write.csv(house_only16, "2016.csv")
   # Get the center of the hexagon
-  h3_to_geo_sf(h3_index)
+  centers <- h3_to_geo_sf(h3_index)
+  centers <- gsub('[a-zA-Z]', '', centers)
   
+  centers <- str_split_fixed(centers$geometry, ",", 2)
+  centers <- centers %>% separate(centers, c("A","B"), sep = "([,])")
+  
+  # cbind centers to objects
+  house_only16 <- cbind(house_only16, centers)
   
   ## Step 5: Eliminate properties without buildings and very low values ----------
   
