@@ -146,8 +146,8 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   
   # filter no baths and no bedrooms, we aim to separate properties with buildings
   # and properties without buildings
-  house_only16 <- p2016[(p2016$num_bathroom > 0 | p2016$num_bedroom > 0),]  
-  house_only16 <- p2016[p2016$num_room > 0,] 
+  house_only16 <- p2016[(p2016$num_bedroom > 0),] 
+  house_only16 <- house_only16[(house_only16$num_bathroom > 0),] 
   
   ## Step 4: Eliminate columns with more than 20% NAs -------------------
   
@@ -162,9 +162,10 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   house_only16 <- house_only16[!is.na(house_only16$age),]
   house_only16 <- house_only16[!is.na(house_only16$factor),]
   house_only16 <- house_only16[!is.na(house_only16$area_lot),]
-  house_only16 <- house_only16[!is.na(house_only16$loc_city),]
   house_only16 <- house_only16[!is.na(house_only16$num_story),]
   house_only16 <- house_only16[!is.na(house_only16$num_tax_property),]
+  
+  # since we focus only on single family residential 0 bed or 0 baths does not make sense to include
   house_only16 <- house_only16[house_only16$factor == 'Single Family Residential',]
   
   # light data set
@@ -186,10 +187,11 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   
   # omit variables with high NAs or no conceptual use
   
-  omit <- c('id_parcel','area_basement', 'loc_county', 'area_liveperi_finished',
-            'type_framing', 'area_total_finished', 'num_unit', 'type_story',
-            'type_architect', 'type_material', 'tax_delinquency_flag',
-            'tax_delinquency_year', 'flag_spa_or_tub_pool', 'flag_spa_or_tub',
+  omit <- c('id_parcel','area_basement', 'loc_county', 'loc_city', 'loc_zip',
+            'area_liveperi_finished', 'type_framing', 'area_total_finished',
+            'num_unit', 'type_story', 'type_architect', 'type_material',
+            'tax_delinquency_flag', 'tax_delinquency_year',
+            'flag_spa_or_tub_pool', 'flag_spa_or_tub',
             'heating_factor', 'type_deck', 'ac_factor', 'area_pool',
             'quality_factor', 'area_patio', 'flag_no_tub' , 'num_75_bath',
             'num_fireplace', 'area_firstfloor_finished', 'area_shed',
@@ -208,6 +210,7 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
                'num_garage', 'num_pool', 'age')
   
   subhouse_only16 <- house_only16[,columns]
+  library(Hmisc)
   hist.data.frame(subhouse_only16)
   
   # compile long and lat data in H3
@@ -265,29 +268,24 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   
   ## Step 5: Plot the variable relationships and remove outliers -------------------------------
   
-  set.seed(123)
-  
-  sample <- sample_n(house_only16, 100000)
-  
-  
   # plot bedroom vs tax
-  ggplot(data = sample, aes(x = num_bedroom, y = log(num_tax_building))) +
+  ggplot(data = house_only16, aes(x = num_bedroom, y = log(num_tax_building))) +
     geom_point() + 
-    ggtitle("2016 House Price vs # bedrooms, Random subset of 100k") +
+    ggtitle("2016 House Price vs # bedrooms") +
     theme_bw()
   ggsave("2016bed.jpeg", height = 7, width = 6, dpi=700)
   
-  # plot bedroom vs tax
-  ggplot(data =  sample, aes(x = num_bathroom, y = log(num_tax_building))) +
+  # plot bathroom vs tax
+  ggplot(data =  house_only16, aes(x = num_bathroom, y = log(num_tax_building))) +
     geom_point() + 
-    ggtitle("2016 House Price vs # bathrooms, Random subset of 100k") +
+    ggtitle("2016 House Price vs # bathrooms") +
     theme_bw()
   ggsave("2016bath.jpeg", height = 7, width = 6, dpi=700)
   
   # plot size vs tax
-  ggplot(data = sample, aes(x = area_live_finished, y = (num_tax_building))) +
+  ggplot(data = house_only2016, aes(x = area_live_finished, y = (num_tax_building))) +
     geom_point() +
-    ggtitle("2016 House Price vs living area, Random subset of 100k") +
+    ggtitle("2016 House Price vs living area") +
     theme_bw()
   ggsave("2016area.jpeg", height = 7, width = 6, dpi=700)
 
