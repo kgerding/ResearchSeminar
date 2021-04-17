@@ -243,6 +243,7 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   
   map
   
+  write.csv(house_only16, "2016.csv")
   # Get the center of the hexagon
   centers <- h3_to_geo_sf(h3_index)
   centers <- gsub('[a-zA-Z]', '', centers)
