@@ -34,11 +34,14 @@ prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
 id <- read.csv('./Info on Data/id.csv', sep = ',')
 heating_id <- read.csv('./Info on Data/heating_id.csv', sep = ',')
 quality_id <- read.csv('./Info on Data/quality_id.csv', sep = ',')
+ac_id <- read.csv('./Info on Data/ac_id.csv', sep = ',')
+
 
 # change colnames
 colnames(id) <- c('type_zoning_landuse', 'factor')
 colnames(heating_id) <- c('type_heating', 'heating_factor')
 colnames(quality_id) <- c('type_quality', 'quality_factor')
+colnames(ac_id) <- c('type_ac', 'ac_factor')
 
 ### PART 1: DATA INSPECTION ----------------------------------------------------
 
@@ -114,8 +117,11 @@ colnames(quality_id) <- c('type_quality', 'quality_factor')
   p2016$flag_tub_or_spa <- as.numeric(as.character(p2016$flag_tub_or_spa))
   p2016$flag_fireplace <- as.numeric(as.character(p2016$flag_fireplace))
   
-  # add age insted of year_built
+  # add age instead of year_built
   p2016$age <- 2021 - p2016$year_built
+  
+  # drop year_built
+  p2016 <- p2016 %>% select(-'year_built')
   
   # type id as factor
   p2016 <- left_join(p2016, id, by = 'type_zoning_landuse')
@@ -132,62 +138,113 @@ colnames(quality_id) <- c('type_quality', 'quality_factor')
   p2016 <- p2016[ , -which(names(p2016) %in% c("type_quality"))]
   p2016$quality_factor <- as.factor(p2016$quality_factor)
   
-  # proportion of living area to area lot
-  p2016$prop_living <- p2016$area_live_finished/p2016$area_lot
-  
-  # proportion of building to land value
-  p2016$build_land_prop <- p2016$num_tax_building/p2016$num_tax_land
+  # type ac as factor
+  p2016 <- left_join(p2016, ac_id, by = 'type_ac')
+  p2016 <- p2016[ , -which(names(p2016) %in% c("type_ac"))]
+  p2016$quality_factor <- as.factor(p2016$ac_factor)
   
   # filter no baths and no bedrooms, we aim to separate properties with buildings
   # and properties without buildings
-  house_only16 <- p2016[(p2016$num_bathroom > 0 | p2016$num_bedroom > 0),]
+  house_only16 <- p2016[(p2016$num_bathroom > 0 | p2016$num_bedroom > 0),]  
+  house_only16 <- p2016[p2016$num_room > 0,] 
   
   ## Step 4: Eliminate columns with more than 20% NAs -------------------
   
-  test <- p2016[!is.na(p2016$num_garage),]
-  test <- test[!is.na(test$num_tax_building),]
-  test <- test[!is.na(test$area_live_finished),]
-  test <- test[!is.na(test$num_bathroom),]
-  test <- test[!is.na(test$num_bedroom),]
+  # NA omitting -> order is consciously chosen
+  # to extract as much variation as possible from data
+  # focus on Single Family Residential
+  house_only16 <- house_only16[!is.na(house_only16$num_tax_building),]
+  house_only16 <- house_only16[!is.na(house_only16$num_garage),]
+  house_only16 <- house_only16[!is.na(house_only16$area_live_finished),]
+  house_only16 <- house_only16[!is.na(house_only16$num_bathroom),]
+  house_only16 <- house_only16[!is.na(house_only16$num_bedroom),]
+  house_only16 <- house_only16[!is.na(house_only16$age),]
+  house_only16 <- house_only16[!is.na(house_only16$factor),]
+  house_only16 <- house_only16[!is.na(house_only16$area_lot),]
+  house_only16 <- house_only16[!is.na(house_only16$loc_city),]
+  house_only16 <- house_only16[!is.na(house_only16$num_story),]
+  house_only16 <- house_only16[!is.na(house_only16$num_tax_property),]
+  house_only16 <- house_only16[house_only16$factor == 'Single Family Residential',]
   
-  hist.data.frame(test[,c('')])
+  # light data set
+  house_only16_factor <- house_only16[!is.na(house_only16$quality_factor),]
+  house_only16_factor <- house_only16_factor[!is.na(house_only16_factor$ac_factor),]
   
+  # reintroduce 0 pools
+  house_only16$num_pool[is.na(house_only16$num_pool)] <- 0
   
+  # correct garage
+  house_only16 <- house_only16[((house_only16$num_garage > 0 & house_only16$area_garage > 0) | (house_only16$num_garage == 0 & house_only16$area_garage == 0) ) , ]
   
-  # first remove NAs of most important columns to see an more workable data set
-  house_only16 <- house_only16[na.omit(house_only16$num_tax_building),]
-  house_only16 <- house_only16[na.omit(house_only16$area_live_finished),]
-  house_only16 <- house_only16[na.omit(house_only16$num_bathroom),]
-  house_only16 <- house_only16[na.omit(house_only16$num_bedroom),]
-
   # quick plot
   count_nas <- colSums(is.na(house_only16))/nrow(house_only16)
   sorted <- rev(sort(count_nas))
   barplot(sorted, cex.names = 0.5, las = 2)
-  abline(v=35, col="red")
+  abline(v=30, col="red")
   title(main = '% NAs in 2016 Data')
   
+  # omit variables with high NAs or no conceptual use
   
-  # define and select hedonics (<0.2 NAs or <0.4 NAs)
-  hedonics <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
-                'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot',
-                'factor','loc_zip','loc_county', 'age',
-                'flag_fireplace', 'num_tax_building','num_tax_total',
-                'num_tax_land', 'prop_living', 'build_land_prop')
+  omit <- c('id_parcel','area_basement', 'loc_county', 'area_liveperi_finished',
+            'type_framing', 'area_total_finished', 'num_unit', 'type_story',
+            'type_architect', 'type_material', 'tax_delinquency_flag',
+            'tax_delinquency_year', 'flag_spa_or_tub_pool', 'flag_spa_or_tub',
+            'heating_factor', 'type_deck', 'ac_factor', 'area_pool',
+            'quality_factor', 'area_patio', 'flag_no_tub' , 'num_75_bath',
+            'num_fireplace', 'area_firstfloor_finished', 'area_shed',
+            'num_bathroom_calc', 'loc_neighbor','area_unknown', 'area_base',
+            'loc_fips', 'loc_tract_block', 'loc_raw_tract_block',
+            'type_desc_zoning_landuse', 'type_zoning_landuse_county', 'factor',
+            'num_tax_land', 'tax_assess_year', 'num_bath', 'area_total_calc',
+            'num_room'
+            )
+
+  house_only16 <- house_only16 %>% select(-omit)
   
-  hedonics2 <- c('id_parcel','num_bathroom','num_bedroom','area_live_finished',
-                'flag_tub_or_spa','loc_latitude','loc_longitude','area_lot',
-                'factor','loc_zip','loc_county', 'age',
-                'flag_fireplace', 'num_tax_building','num_tax_total',
-                'num_tax_land', 'num_unit', 'quality_factor', 'heating_factor',
-                'prop_living', 'build_land_prop')
+  # histrogram plotting
+  columns <- c('num_tax_building', 'area_live_finished', 'area_lot',
+               'num_story','num_bedroom', 'num_bathroom',
+               'num_garage', 'num_pool', 'age')
   
-  house_only16_mv <- house_only16 %>% select(hedonics2)
-  house_only16 <- house_only16 %>% select(hedonics)
+  subhouse_only16 <- house_only16[,columns]
+  hist.data.frame(subhouse_only16)
   
-  # finally remove all NAs as not usefull for regression and ML
-  #house_only16 <- na.omit(house_only16)
-  #house_only16_mv <- na.omit(house_only16_mv)
+  # compile long and lat data in H3
+  library(h3)
+  
+  # define coordinates
+  coords <- cbind(house_only16$loc_latitude/1000000,house_only16$loc_longitude/1000000)
+  
+  #define resolution of H3 indexes
+  resolution <- 6
+  
+  # Convert a lat/lng point to a hexagon index at resolution 7
+  h3_index <- geo_to_h3(coords, resolution)
+  
+  # rendering hexagons
+  tbl <- table(h3_index) %>%
+    tibble::as_tibble()
+  hexagons <- h3_to_geo_boundary_sf(tbl$h3_index) %>%
+    dplyr::mutate(index = tbl$h3_index, accidents = tbl$n)
+  
+  library(leaflet)
+  
+  pal <- colorBin("YlOrRd", domain = hexagons$accidents)
+  
+  map <- leaflet(data = hexagons, width = "100%") %>%
+    addProviderTiles("Stamen.Toner") %>%
+    addPolygons(
+      weight = 2,
+      color = "white",
+      fillColor = ~ pal(accidents),
+      fillOpacity = 0.8,
+      label = ~ sprintf("%i accidents (%s)", accidents, index)
+    )
+  
+  map
+  
+  # Get the center of the hexagon
+  h3_to_geo_sf(h3_index)
   
   
   ## Step 5: Eliminate properties without buildings and very low values ----------
