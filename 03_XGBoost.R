@@ -67,7 +67,7 @@ for (i in colnames(house_only16_mv)) {
 data = (na.omit(house_only16_mv))
 
 # use only first 10'000
-data = (data[1:10000,])
+#data = (data[1:10000,])
 
 # normalize area_garage
 # log only if num_garage is not 0, to avoid having -inf from log(0)
@@ -159,25 +159,23 @@ dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
 
 
 # Find Optimized parameters 1  -----------------------------
-# 
-# library(klaR)
+
+library(klaR)
 # library(doParallel)
 # library(caret)
 # 
 # 
 # tic()
 # 
-# fitGrid <- expand.grid(nrounds = 1000, 
+# fitGrid <- expand.grid(nrounds = 1000,
 #                        max_depth = c(3,4,5,6,7,8,9,10),
-#                        eta = c(0.05, 0.1, 0.2, 0.3, 0.5), 
+#                        eta = c(0.05, 0.1, 0.2, 0.3, 0.5),
 #                        gamma = c(0, 0.1, 0.2, 0.3, 0.5),
-#                        colsample_bytree = c(0.1, 0.2, 0.3, 0.5), 
+#                        colsample_bytree = c(0.1, 0.2, 0.3, 0.5),
 #                        min_child_weight = c(1, 3, 5, 7, 9),
 #                        subsample = c(0.1, 0.3, 0.6, 0.8, 1)
-#                        )
+# )
 # 
-# # cl <- makePSOCKcluster(8)
-# # registerDoParallel(cl)
 # 
 # # for a random search
 # fitControl <- caret::trainControl(method = "cv", #resampling method
@@ -195,8 +193,6 @@ dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
 #                  trControl = fitControl,
 #                  tuneGrid = fitGrid) # only needed for gridSearch
 # xgb_fit
-# 
-# # stopCluster(cl)
 # 
 # # trellis.par.set(caretTheme())
 # # plot(xgb_fit)
