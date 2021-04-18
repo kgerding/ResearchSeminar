@@ -233,8 +233,9 @@ params <- makeParamSet(makeDiscreteParam("booster", values = c("gbtree", "dart")
                        makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
                        makeNumericParam("subsample",lower = 0.2,upper = 1), 
                       makeNumericParam("colsample_bytree",lower = 0.1,upper = 1), 
-                      makeDiscreteParam("eta", values = c(0.05,0.1,0.2)))
-
+                      makeDiscreteParam("eta", values = c(0.05, 0.1, 0.2)),
+                      makeDiscreteParam("gamma", values = c(0, 0.2, 0.5, 0.7))
+)
 
 # set resampling strategy
 # If you have many classes for a classification type predictive modeling problem or the classes are imbalanced 
@@ -270,12 +271,12 @@ toc()
 # take the parameters of mytune
 params <- list(booster = mytune$x$booster, 
                objective = "reg:squarederror",
-               eta=0.1, # learning rate, usually between 0 and 1. makes the model more robust by shrinking the weights on each step
-               gamma=0, # regularization (prevents overfitting), higher means more penalty for large coef. makes the algo more conservative
-               subsample= 0.5, # fraction of observations taken to make each tree. the lower the more conservative and more underfitting, less overfitting. 
-               max_depth = mytune$x$max_depth) # max depth of trees, the more deep the more complex and overfitting
-               #min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
-               #colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
+               eta=mytune$x$eta, # learning rate, usually between 0 and 1. makes the model more robust by shrinking the weights on each step
+               gamma=mytune$x$gamma, # regularization (prevents overfitting), higher means more penalty for large coef. makes the algo more conservative
+               subsample= mytune$x$subsample, # fraction of observations taken to make each tree. the lower the more conservative and more underfitting, less overfitting. 
+               max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
+               min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
+               colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
 
 # using cross-validation to find optimal nrounds parameter
 xgbcv <- xgb.cv(params = params,
