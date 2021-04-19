@@ -213,6 +213,8 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   library(Hmisc)
   hist.data.frame(subhouse_only16)
   
+# Spatial Regression -----------------------------------------------------------  
+  
   # compile long and lat data in H3
   library(h3)
   
@@ -220,7 +222,7 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   coords <- cbind(house_only16$loc_latitude/1000000,house_only16$loc_longitude/1000000)
   
   #define resolution of H3 indexes
-  resolution <- 5
+  resolution <- 6
   
   # Convert a lat/lng point to a hexagon index at resolution 7
   h3_index <- geo_to_h3(coords, resolution)
@@ -247,24 +249,62 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   
   map
   
-  write.csv(house_only16, "2016.csv")
   # Get the center of the hexagon
-  centers <- h3_to_geo_sf(h3_index)
-  centers <- gsub('[a-zA-Z]', '', centers)
+  centers <- data.frame(h3_to_geo(h3_index))
   
-  centers <- str_split_fixed(centers$geometry, ",", 2)
-  centers <- centers %>% separate(centers, c("A","B"), sep = "([,])")
+  # create index 
+  centers <- data.table(centers)
+  centers[,Zone:= .GRP, by = c('lat', 'lng')]
   
   # cbind centers to objects
-  house_only16 <- cbind(house_only16, centers)
+  step <- cbind(house_only16, centers)
   
-  ## Step 5: Eliminate properties without buildings and very low values ----------
+  # aggregate to Zones
+  agg2016 <- aggregate(step, list(step$Zone), mean)
+  
+  # detect spatial autocorrelation
+  la.dists <- as.matrix(dist(cbind(agg2016$lng, agg2016$lat)))
+  la.dists.inv <- 1/la.dists
+  diag(la.dists.inv) <- 0
+  
+  library(ape)
+  Moran.I(agg2016$num_tax_building, la.dists.inv)
+  
+  # basic OLS per zone 
+  model <- log(num_tax_building) ~ num_bathroom + num_bedroom + log(area_live_finished) + flag_tub_or_spa + log(age) + flag_fireplace + num_garage + num_pool + num_story
+  fit <- lm(model ,data = agg2016)
+  
+  library(h3jsr)
+  # aggregate shapefile
+  coords_reduced <- c(agg2016$lat, agg2016$lng)
+  h3_index_reduced <- geo_to_h3(coords_reduced)
+  sf <- h3_to_geo_boundary_sf(h3_index_reduced)
+  
+  ct_sf <- st_centroid(st_geometry(sf))
+  
+  nearest.six <- knearneigh(ct_sf, k = 6) 
+  nearest.six2 <- knn2nb(nearest.six) 
+  
+  # plotting neighbours
+  plot(sf)
+  plot(nearest.six2, st_geometry(sf), col = 2, add = TRUE)
+  
+  # SAR Model
+  W.listw <- nb2listw(nearest.six2)
+  
+  # arun model
+  fit.sar <- lagsarlm(model, W.listw, data = agg2016, method="eigen", quiet = TRUE)
+  summary(fit.sar)
+  
+  moran.test(hunan$GDPPC, listw = rswm_q, zero.policy = TRUE, na.action = na.omit)
+  
+  
+## Step 5: Eliminate properties without buildings and very low values ----------
   
   # drop building values below 50'000
   hist(log(house_only16$num_tax_building),breaks = 100)
 
-  
-  ## Step 5: Plot the variable relationships and remove outliers -------------------------------
+## Step 6: Plot the variable relationships and remove outliers -----------------
   
   # plot bedroom vs tax
   ggplot(data = house_only16, aes(x = num_bedroom, y = log(num_tax_building))) +
@@ -313,16 +353,20 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   # we need to filter the outlier of high area_lot but very low building structure value 
   house_only16 <- house_only16[house_only16$area_lot < 100000,]
   
-  ### PART 2 ALGORITHMS ###---------------------------------------------------
   
-  ## Regressions ------------------------------------
+  write.csv(house_only16, "2016.csv")
+  
+  
+### PART 2 ALGORITHMS ###-------------------------------------------------------
+  
+# Regressions 
   
   house_only16$logbuild <- log(house_only16$num_tax_building)
   house_only16$logtotal <- log(house_only16$num_tax_total)
   house_only16_mv$logbuild <- log(house_only16_mv$num_tax_building)
   house_only16_mv$logtotal <- log(house_only16_mv$num_tax_total)
   
-  write.csv(house_only16_mv, file = 'house_only16_mv.csv')
+  model <- log(num_tax_building) ~ log(area_live_finished) + log(age) + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
   
   # simple regression of building value
   hedonic_build <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
@@ -384,116 +428,3 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
                number_format = "%.3f",
                file.name = "2017total.docx", to.file = 'docx',
                scale = FALSE, robust = TRUE)
-}
-
-## Advanced Algorithms --------------------------------
-
-# Spatial Regression -----------------------------------------------------------
-
-# Step 1: Visualisation
-
-
-# new df
-data <- na.omit(house_only16)
-
-# set longitude and latiude data right
-data$loc_latitude <- data$loc_latitude/1000000
-data$loc_longitude <- data$loc_longitude/1000000
-
-# subset if wanted
-#data <- data[1:1000,]
-
-# create a new empty leaflet map
-map_CA <- leaflet()
-
-# set the view on the map with the mean longitude and latitude, zoom in a bit
-map_CA <- setView(map_CA, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 9)
-
-# add the tile layer on top of the map
-map_CA <- addTiles(map_CA)
-
-# add coloring according to the rent/price quantile of the real estate and it to a new column in
-# the original data set
-forsale <- colorQuantile("Oranges", domain =  data$num_tax_total, n = 5)
-
-# new column
-data$colors_sale <- forsale(data$num_tax_total)
-
-# add markers with color coding
-map_CA <- addCircleMarkers(map_CA, lng = data$loc_longitude, lat = data$loc_latitude,
-                           radius = log(data$num_tax_total/500), stroke = F,
-                           fillOpacity = 0.95, fill = T,
-                           fillColor =  data$colors_sale)
-
-# add legends
-map_CA <- addLegend(map_CA, pal = forsale, values = data$num_tax_total, opacity = 0.8, title = "House Prices")
-
-# plot
-map_CA
-
-# Step 2 : Weight Matrix
-
-# read CA map
-CA <- readShapePoly('/Users/kiliangerding/Downloads/LA_County_City_Boundaries/LA_County_City_Boundaries.shp')
-plot(CA)
-
-# the map can be used to generate contiguity or k-nearest neighbor based weight matrices W.
-# The weight matrix in turn is an important input for spatial regression analysis
-# first the contiguity W. Seems to misbehave at the county borders
-contiguity <- tri2nb(coordinates(CA))
-plot(contiguity, coordinates(CA), col = 4, add = TRUE)
-# the six-nearest neighbor matrix looks better
-nearest.six <- knearneigh(coordinates(CA), k = 6, RANN = FALSE) 
-nearest.six2 <- knn2nb(nearest.six) # plotting of W require the object to be of class "nb". Therefore, class conversion from "knn" to "nb"
-plot(CA)
-plot(nearest.six2, coordinates(CA), col = 2, add = TRUE)
-
-
-#m <- leaflet(data = CA)
-#m <- setView(m, lng = mean(data$loc_longitude), lat = mean(data$loc_latitude), zoom = 4)
-#m <- addProviderTiles(m, providers$OpenTopoMap)
-#m <- addPolygons(m, lng = data$loc_longitude, lat = data$loc_latitude, stroke = TRUE, weight = 1,
-#                 highlightOptions = highlightOptions(color = "white", weight = 4, bringToFront = TRUE))
-#m
-
-
-# The SAR Model:----------------------------------------
-
-LA <- read_sf("/Users/kiliangerding/Downloads/LA_County_City_Boundaries/LA_County_City_Boundaries.shp")
-
-pnts <- data[, c('loc_latitude', 'loc_longitude')]
-pnts_sf <- st_as_sf(pnts , coords = c('loc_latitude', 'loc_longitude'), crs = st_crs(LA))
-
-pnts <- pnts_sf %>% mutate(
-  intersection = as.integer(st_intersects(geometry, LA))
-  , area = if_else(is.na(intersection), '', LA$CITY_NAME[intersection])
-) 
-
-pnts
-
-# estimation of the spatial regression model by maximum likelihood:
-coords <- coordinates(data[, c('loc_latitude', 'loc_longitude')])
-
-k6 <- knn2nb(knearneigh(coords, k = 6))
-plot(knn6, coords, pch = 19, cex = 0.6, add = TRUE, col = 'red')
-
-#k6dists <- unlist(nbdists(k6, coords, longlat = TRUE))
-#summary(k1dists)
-
-
-##
-W <- nb2mat(nearest.six2)
-
-# variables are in matrix form because we need matrix algebra:
-Y <- as.matrix(house_only16$num_tax_building)
-colnames(Y) <- "HP"
-X <- cbind(1,house_only16$age)
-colnames(X) <- c("intercept","age")
-
-# the lagsarlm() command in the spedep package requires the weight matrix to be a listw object
-W.listw <- nb2listw(nearest.six2)
-
-fit.sar <- lagsarlm(log(num_tax_building) ~ age, W.listw, data = house_only16, method="eigen", quiet = TRUE)
-
-summary(fit.sar) # same coefficient than what we get using ML "by hand" (see fit2)
-
