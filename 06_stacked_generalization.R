@@ -102,7 +102,6 @@ str(train16_sparse)
 # MODEL --------------------------------------------------
 
 listWrappers() #SL.lmn SL.randomForest, SL.xgboost, SL.svm
-set.seed(123)
 
 ## you might need to install ranger for Random Forest
 # install.packages('ranger')
@@ -200,7 +199,7 @@ print(review_weights(cv.model1), digits = 3)
 
 
 
-# HYPERPARAMETER TUNING ------------------------------------------
+# HYPERPARAMETER TUNING 1 ------------------------------------------
 
 # confirm if we have multiple cores set up
 getOption("mc.cores")
@@ -236,11 +235,16 @@ plot(cv.model3)
 # HYPERPARAMETER TUNING 2 ------------------------------------------------
 
 # Load coefficient from other models
-params_xgb <- load("/Models/params_xgboost.RData")
+load("./Models/params_xgb.RData")
+load("./Models/xgb_best_iteration.RData")
 
 # Create learners 
-learner_ranger <- create.Learner("SL.ranger", params=list(num.trees=1000, mtry=2, sample.fraction = 0.5))
-learner_xgb <- create.Learner("SL.xgboost", params=list(ntrees = 1000, max_depth, shrinkage = 0.1))
+learner_ranger <- create.Learner("SL.ranger", params=list(num.trees=1000, 
+                                                          mtry=2, 
+                                                          sample.fraction = 0.5))
+learner_xgb <- create.Learner("SL.xgboost", params=list(ntrees = xgb_best_iteration, 
+                                                        max_depth = params_xgb$max_depth, 
+                                                        shrinkage = params_xgb$eta))
 learner_svm <- create.Learner("SL.svm", params=list(...))
 learner_bagg <- create.Learner("SL.ipredbagg", params=list(nbagg=250))
 

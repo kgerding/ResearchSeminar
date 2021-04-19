@@ -200,7 +200,6 @@ dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
 
 
 # Find Optimized parameters 2  -----------------------------
-tic()
 
 
 #set.seed(123)
@@ -228,13 +227,13 @@ lrn$par.vals <- list(objective="reg:squarederror",
 
 # set parameter space
 # for computational reasons we only optimize the most important variables with are the booster type and the max depth per tree
-params <- makeParamSet(makeDiscreteParam("booster", values = c("gbtree", "dart")), # gbtree and dart - use tree-based models, while glinear uses linear models
-                       makeIntegerParam("max_depth",lower = 3L,upper = 10L), 
-                       makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
-                       makeNumericParam("subsample",lower = 0.2,upper = 1), 
-                      makeNumericParam("colsample_bytree",lower = 0.1,upper = 1), 
-                      makeDiscreteParam("eta", values = c(0.05, 0.1, 0.2)),
-                      makeDiscreteParam("gamma", values = c(0, 0.2, 0.5, 0.7))
+params_xgb <- makeParamSet(makeDiscreteParam("booster", values = c("gbtree", "dart")), # gbtree and dart - use tree-based models, while glinear uses linear models
+                           makeIntegerParam("max_depth",lower = 3L,upper = 10L), 
+                           makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
+                           makeNumericParam("subsample",lower = 0.2,upper = 1), 
+                           makeNumericParam("colsample_bytree",lower = 0.1,upper = 1), 
+                           makeDiscreteParam("eta", values = c(0.05, 0.1, 0.2)),
+                           makeDiscreteParam("gamma", values = c(0, 0.2, 0.5, 0.7))
 )
 
 # set resampling strategy
@@ -254,7 +253,7 @@ parallelStartSocket(cpus = detectCores(), level = "mlr.tuneParams")
 mytune <- tuneParams(learner = lrn, 
                      task = traintask, 
                      resampling = rdesc, 
-                     par.set = params, 
+                     par.set = params_xgb, 
                      control = ctrl, 
                      show.info = TRUE)
 
@@ -262,24 +261,23 @@ parallelStop()
 
 # print the optimal parameters
 mytune
-toc()
 
 
 
 # Model 2: XGBoost with optimized parameters  -----------------------------
 
 # take the parameters of mytune
-params <- list(booster = mytune$x$booster, 
-               objective = "reg:squarederror",
-               eta=mytune$x$eta, # learning rate, usually between 0 and 1. makes the model more robust by shrinking the weights on each step
-               gamma=mytune$x$gamma, # regularization (prevents overfitting), higher means more penalty for large coef. makes the algo more conservative
-               subsample= mytune$x$subsample, # fraction of observations taken to make each tree. the lower the more conservative and more underfitting, less overfitting. 
-               max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
-               min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
-               colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
+params_xgb <- list(booster = mytune$x$booster, 
+                   objective = "reg:squarederror",
+                   eta=mytune$x$eta, # learning rate, usually between 0 and 1. makes the model more robust by shrinking the weights on each step
+                   gamma=mytune$x$gamma, # regularization (prevents overfitting), higher means more penalty for large coef. makes the algo more conservative
+                   subsample= mytune$x$subsample, # fraction of observations taken to make each tree. the lower the more conservative and more underfitting, less overfitting. 
+                   max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
+                   min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
+                   colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
 
 # using cross-validation to find optimal nrounds parameter
-xgbcv <- xgb.cv(params = params,
+xgbcv <- xgb.cv(params = params_xgb,
                 data = dtrain, 
                 nrounds = 1000L, 
                 nfold = 5,
@@ -292,13 +290,13 @@ xgbcv <- xgb.cv(params = params,
                 verbose = 2)
 
 # Result of best iteration
-xgbcv$best_iteration
+xgb_best_iteration <- xgbcv$best_iteration
 
 
 # first training with optimized nround
-xgb2 <- xgb.train(params = params, 
+xgb2 <- xgb.train(params = params_xgb, 
                   data = dtrain, 
-                  nrounds = xgbcv$best_iteration, 
+                  nrounds = xgb_best_iteration, 
                   watchlist = list(test = dtest, train = dtrain), 
                   maximize = F, 
                   eval_metric = "rmse"
@@ -311,7 +309,7 @@ r2_xgb2 <- 1 - ( sum((test_vector-xgb2_pred)^2) / sum((test_vector-mean(test_vec
 
 str(xgb2_pred)
 
-# COMPARISON simple regression ----------------------------------
+# comparison_xgb simple regression ----------------------------------
 train16_sparse <- data.frame(model.matrix(~ . -1, train16))
 test16_sparse <- data.frame(model.matrix(~ . -1, test16))
 
@@ -377,21 +375,21 @@ capturing non-linear relationship"
 # 
 
 # COMPARE RMSE and R2 -----------------------------
-comparison <- data.frame(matrix(data = NA, nrow = 4, ncol = 2, dimnames = list(c('xgb_tree 1', 'xgb_tree 2', 'xgb_linear 3', 'linear glm'), c('RMSE', 'R2'))))
+comparison_xgb <- data.frame(matrix(data = NA, nrow = 4, ncol = 2, dimnames = list(c('xgb_tree 1', 'xgb_tree 2', 'xgb_linear 3', 'linear glm'), c('RMSE', 'R2'))))
 
-#comparison$RMSE[1] <- rmse_xgb1
-comparison$RMSE[2] <- rmse_xgb2
-#comparison$RMSE[3] <- rmse_xgb3
-comparison$RMSE[4] <- rmse_lm
-
-
-#comparison$R2[1] <- r2_xgb1
-comparison$R2[2] <- r2_xgb2
-#comparison$R2[3] <- r2_xgb3
-comparison$R2[4] <- r2_lm
+#comparison_xgb$RMSE[1] <- rmse_xgb1
+comparison_xgb$RMSE[2] <- rmse_xgb2
+#comparison_xgb$RMSE[3] <- rmse_xgb3
+comparison_xgb$RMSE[4] <- rmse_lm
 
 
-comparison
+#comparison_xgb$R2[1] <- r2_xgb1
+comparison_xgb$R2[2] <- r2_xgb2
+#comparison_xgb$R2[3] <- r2_xgb3
+comparison_xgb$R2[4] <- r2_lm
+
+
+comparison_xgb
 
 # PLOTS --------------------------------------------------
 
@@ -404,13 +402,13 @@ xgb.plot.tree(feature_names = names(dtrain),
 importance2 <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb2)
 xgb_importance <- xgb.plot.importance(importance_matrix = importance2, top_n = 15)
 plot_xgb_importance <- xgb_importance %>%
-                        mutate(Feature = fct_reorder(Feature, Importance)) %>%
-                        ggplot(aes(x=Feature, y=Importance)) +
-                        geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
-                        coord_flip() +
-                        xlab("") +
-                        theme_bw() +
-                        ggtitle('Feature Importance Plot for XG-Boost')
+  mutate(Feature = fct_reorder(Feature, Importance)) %>%
+  ggplot(aes(x=Feature, y=Importance)) +
+  geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
+  coord_flip() +
+  xlab("") +
+  theme_bw() +
+  ggtitle('Feature Importance Plot for XG-Boost')
 plot_xgb_importance
 
 # define top 3 relevant variables
@@ -468,16 +466,12 @@ ggsave('plot_xgb_importance.png', path = './Plots/', plot = plot_xgb_importance,
 # save model to local file
 xgb.save(xgb2, "./Models/xgboost.model")
 
-# save comparison
-save(comparison,file="./Models/results_xgboost.Rda")
+# save comparison_xgb
+save(comparison_xgb,file="./Models/results_xgboost.Rdata")
 
 # save parameters
-save(params,file="./Models/params_xgboost.RData")
+save(params_xgb, file = "./Models/params_xgb.RData")
+save(xgb_best_iteration, file = "./Models/xgb_best_iteration.RData")
 
-
-
-# LOAD MODEL ----------------------------------------
-# # load xgboosting model
-# xgb <- xgb.load("xgboost.model")
 
 toc()
