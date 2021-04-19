@@ -324,10 +324,10 @@ vip(price_bagging2, num_features = 40)
 
 ### PART 4: Prediction of Random Forest with Cross Validation ------------------
 
-price_forest = randomForest(
+price_forest <- randomForest(
   logbuild ~ num_bathroom + num_bedroom + logarea + logage + flag_tub_or_spa + flag_fireplace,
   data = train16,
-  mtry = 2,
+  mtry = 2, 
   importance = TRUE,
   ntrees = 500
 )

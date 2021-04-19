@@ -183,7 +183,7 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   sorted <- rev(sort(count_nas))
   barplot(sorted, cex.names = 0.5, las = 2)
   abline(v=30, col="red")
-  title(main = '% NAs in 2016 Data')
+  title(main = '% NAs in 2017 Data')
   
   # omit variables with high NAs or no conceptual use
   
@@ -298,6 +298,10 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   
   moran.test(hunan$GDPPC, listw = rswm_q, zero.policy = TRUE, na.action = na.omit)
   
+  impacts(sar.chi, listw=W)
+  
+  # plot residuals
+  spplot(chi.poly,"chi.sar.res",at=seq(min(chi.poly@data$chi.sar.res,na.rm=TRUE),max(chi.poly@data$chi.sar,na.rm=TRUE), length=12), col.regions=rev(brewer.pal(11,"RdBu")))
   
 ## Step 5: Eliminate properties without buildings and very low values ----------
   
@@ -309,37 +313,37 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   # plot bedroom vs tax
   ggplot(data = house_only16, aes(x = num_bedroom, y = log(num_tax_building))) +
     geom_point() + 
-    ggtitle("2016 House Price vs # bedrooms") +
+    ggtitle("2017 House Price vs # bedrooms") +
     theme_bw()
-  ggsave("2016bed.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2017bed.jpeg", height = 7, width = 6, dpi=700)
   
   # plot bathroom vs tax
   ggplot(data =  house_only16, aes(x = num_bathroom, y = log(num_tax_building))) +
     geom_point() + 
-    ggtitle("2016 House Price vs # bathrooms") +
+    ggtitle("2017 House Price vs # bathrooms") +
     theme_bw()
-  ggsave("2016bath.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2017bath.jpeg", height = 7, width = 6, dpi=700)
   
   # plot size vs tax
   ggplot(data = house_only16, aes(x = area_live_finished, y = (num_tax_building))) +
     geom_point() +
-    ggtitle("2016 House Price vs living area") +
+    ggtitle("2017 House Price vs living area") +
     theme_bw()
-  ggsave("2016area.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2017area.jpeg", height = 7, width = 6, dpi=700)
 
   # plot age vs tax
   ggplot(data = house_only16, aes(x = age, y = (log(num_tax_building)))) +
     geom_point() +
-    ggtitle("2016 House Price vs Age") +
+    ggtitle("2017 House Price vs Age") +
     theme_bw()
-  ggsave("2016age.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2017age.jpeg", height = 7, width = 6, dpi=700)
   
   # plot area_lot vs tax
   ggplot(data = house_only16, aes(x = area_lot, y = num_tax_building)) +
     geom_point() +
-    ggtitle("2016 House Price vs lot size") +
+    ggtitle("2017 House Price vs lot size") +
     theme_bw()
-  ggsave("2016lot.jpeg", height = 7, width = 6, dpi=700)
+  ggsave("2017lot.jpeg", height = 7, width = 6, dpi=700)
   
   # some filtering of outliers
   
@@ -353,63 +357,22 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   # we need to filter the outlier of high area_lot but very low building structure value 
   house_only16 <- house_only16[house_only16$area_lot < 100000,]
   
-  
-  write.csv(house_only16, "2016.csv")
-  
+  library("PerformanceAnalytics")
+  my_data <- house_only16[,c(1,2,3,4,6,10,11,12,13)]
+  chart.Correlation(my_data, histogram=TRUE, pch=19)
   
 ### PART 2 ALGORITHMS ###-------------------------------------------------------
   
 # Regressions 
-  
-  house_only16$logbuild <- log(house_only16$num_tax_building)
-  house_only16$logtotal <- log(house_only16$num_tax_total)
-  house_only16_mv$logbuild <- log(house_only16_mv$num_tax_building)
-  house_only16_mv$logtotal <- log(house_only16_mv$num_tax_total)
-  
   model <- log(num_tax_building) ~ log(area_live_finished) + log(age) + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
   
   # simple regression of building value
-  hedonic_build <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
-                  flag_tub_or_spa + log(age) + flag_fireplace #+ prop_living + build_land_prop
-                  ,data = house_only16)
+  hedonic_build <- lm(model,data = house_only16)
   
   summary(hedonic_build)
   #plot(hedonic_build$residuals)
   bptest(hedonic_build)
   hedonic_build_robust <- coeftest(hedonic_build, vcov = vcovHC(hedonic_build, type = "HC0"))
-  
-  # simple regression of total value
-  hedonic_total <- lm(logtotal ~ num_bathroom + num_bedroom +  
-                  flag_tub_or_spa + log(area_lot) + log(age) + flag_fireplace #+ prop_living + build_land_prop
-                  ,
-                  data = house_only16)
-  
-  summary(hedonic_total)
-  #plot(hedonic_total$residuals)
-  bptest(hedonic_total)
-  hedonic_total_robust <- coeftest(hedonic_total, vcov = vcovHC(hedonic_total, type = "HC0"))
-  
-  # lm of building value with factors
-  
-  hedonic_build_fact <- lm(logbuild ~ num_bathroom + num_bedroom + log(area_live_finished) + 
-                             flag_tub_or_spa + log(age) + flag_fireplace #+ prop_living + build_land_prop
-                           + factor + num_unit + quality_factor + heating_factor
-                           , 
-                           data = house_only16_mv)
-  
-  summary(hedonic_build_fact)
-  bptest(hedonic_build_fact)
-  hedonic_build_fact_robust <- coeftest(hedonic_build_fact, vcov = vcovHC(hedonic_build_fact, type = "HC0"))
-  
-  # lm of building value with factors
-  hedonic_total_fact <- lm(logtotal ~ num_bathroom + num_bedroom +  
-                             flag_tub_or_spa + log(area_lot) + log(age) + flag_fireplace #+ prop_living + build_land_prop
-                           + factor + num_unit + quality_factor + heating_factor
-                           , data = house_only16_mv) 
-  
-  summary(hedonic_total_fact)
-  hedonic_total_fact_robust <- coeftest(hedonic_total_fact, vcov = vcovHC(hedonic_total_fact, type = "HC0"))
-  bptest(hedonic_total_fact)
   
   # build nice regression table
   
@@ -419,12 +382,5 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   library(flextable)
   
   export_summs(hedonic_build_robust,
-               hedonic_build_fact_robust,
                number_format = "%.3f",
                file.name = "2017building.docx", to.file = 'docx')
-  
-  export_summs(hedonic_total_robust,
-               hedonic_total_fact_robust,
-               number_format = "%.3f",
-               file.name = "2017total.docx", to.file = 'docx',
-               scale = FALSE, robust = TRUE)
