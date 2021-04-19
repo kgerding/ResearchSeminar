@@ -67,7 +67,7 @@ for (i in colnames(house_only16_mv)) {
 data = (na.omit(house_only16_mv))
 
 # use only first 10'000
-#data = (data[1:10000,])
+data = (data[1:10000,])
 
 # normalize area_garage
 # log only if num_garage is not 0, to avoid having -inf from log(0)
@@ -466,10 +466,13 @@ ggsave('plot_xgb.png', path = './Plots/', plot = plot_xgb, device = 'png')
 ggsave('plot_xgb_importance.png', path = './Plots/', plot = plot_xgb_importance, device = 'png')
 
 # save model to local file
-xgb.save(xgb2, "xgboost.model")
+xgb.save(xgb2, "./Models/xgboost.model")
 
 # save comparison
-save(comparison,file="results_xgboost.Rda")
+save(comparison,file="./Models/results_xgboost.Rda")
+
+# save parameters
+save(params,file="./Models/params_xgboost.RData")
 
 
 
