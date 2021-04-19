@@ -84,7 +84,7 @@ smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
 train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 
 # features we want to omit for the model 
-omit <- c('loc_latitude', 'loc_longitude', 'loc_zip', 'loc_city', 'num_tax_total', 'num_tax_property')
+omit <- c('loc_latitude', 'loc_longitude', 'num_tax_total', 'num_tax_property')
 
 # Split the data into train and test
 train16 <- data[train_ind,]
@@ -160,7 +160,7 @@ dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
 
 # Find Optimized parameters 1  -----------------------------
 
-library(klaR)
+#library(klaR)
 # library(doParallel)
 # library(caret)
 # 
@@ -281,11 +281,12 @@ params <- list(booster = mytune$x$booster,
 # using cross-validation to find optimal nrounds parameter
 xgbcv <- xgb.cv(params = params,
                 data = dtrain, 
-                nrounds = 100L, 
+                nrounds = 1000L, 
                 nfold = 5,
                 showsd = T, # whether to show standard deviation of cv
                 stratified = F, 
                 print_every_n = 1, 
+                nthread = detectCores(),
                 early_stopping_rounds = 50, # stop if we don't see much improvement
                 maximize = F, # should the metric be maximized?
                 verbose = 2)
@@ -466,6 +467,10 @@ ggsave('plot_xgb_importance.png', path = './Plots/', plot = plot_xgb_importance,
 
 # save model to local file
 xgb.save(xgb2, "xgboost.model")
+
+# save comparison
+save(comparison,file="results_xgboost.Rda")
+
 
 
 # LOAD MODEL ----------------------------------------
