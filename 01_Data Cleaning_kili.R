@@ -357,9 +357,13 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   # we need to filter the outlier of high area_lot but very low building structure value 
   house_only16 <- house_only16[house_only16$area_lot < 100000,]
   
-  library("PerformanceAnalytics")
-  my_data <- house_only16[,c(18,19,20,2,1,11,4,10,12,6)]
-  chart.Correlation(my_data, histogram=TRUE, pch="+")
+  library(psych)
+  pairs.panels(subset, 
+               method = "pearson", # correlation method
+               hist.col = "#00AFBB",
+               density = FALSE,  # show density plots
+               ellipses = FALSE # show correlation ellipses
+  )
   
 ### PART 2 ALGORITHMS ###-------------------------------------------------------
   
@@ -369,17 +373,34 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   house_only16$logarea <- log(house_only16$area_live_finished)
   house_only16$logage <- log(house_only16$age)
   house_only16$loglot <- log(house_only16$area_lot)
+  house_only16$loggarage <- ifelse(house_only16$num_garage > 0,log(house_only16$num_garage),0)
   
   # Regressions 
-  model <- log(num_tax_building) ~ log(area_live_finished) + log(amountBuilding) + log(age) + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
+  model <- logbuild ~ logarea + loglot + loggarage + logage + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
   
   # simple regression of building value
   hedonic_build <- lm(model,data = house_only16)
   
   summary(hedonic_build)
-  #plot(hedonic_build$residuals)
+  plot(hedonic_build$residuals)
   bptest(hedonic_build)
   hedonic_build_robust <- coeftest(hedonic_build, vcov = vcovHC(hedonic_build, type = "HC0"))
+  
+  
+  
+  #plot residuals
+  qqnorm(hedonic_build$residuals, pch = 1, frame = FALSE)
+  qqline(hedonic_build$residuals, col = "steelblue", lwd = 2)
+
+  library(olsrr)
+  # check multicollinearity
+  ols_vif_tol(hedonic_build)
+  
+  # Relative importance of independent variables in determining Y. How much
+  # each variable uniquely contributes to R2 over and above that which can be
+  # accounted for by the other predictors.
+  ols_correlations(hedonic_build)
+  
   
   # build nice regression table
   
