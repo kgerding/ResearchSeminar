@@ -65,7 +65,7 @@ for (i in colnames(house_only16_mv)) {
 data = (na.omit(house_only16_mv))
 
 # use only first 10'000
-data = (data[1:10000,])
+#data = (data[1:10000,])
 
 # normalize area_garage
 # log only if num_garage is not 0, to avoid having -inf from log(0)

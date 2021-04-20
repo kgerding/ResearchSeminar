@@ -61,7 +61,7 @@ for (i in colnames(house_only16_mv)) {
 data = (na.omit(house_only16_mv))
 
 # use only first 10'000
-data = (data[1:10000,])
+#data = (data[1:10000,])
 
 # normalize area_garage
 # log only if num_garage is not 0, to avoid having -inf from log(0)
@@ -261,7 +261,7 @@ getOption("mc.cores")
 
 
 # Train the learner
-layer.model4 <- mcSuperLearner(Y = train16$num_tax_building, 
+layer.model4 <- SuperLearner(Y = train16$num_tax_building, 
                                X = data.frame(train16_sparse),
                                newX = data.frame(test16_sparse),
                                family = gaussian(),
@@ -279,7 +279,7 @@ layer.model4$coef # coefficients for the super learner
 head(layer.model4$Z) #the z-matrix: cross-validated predicted values for each algorithm in SL. library
 head(layer.model4$library.predict) # the prediction for the z-matrix
 head(layer.model4$SL.predict) # the final prediction
-head(predict.SuperLearner(layer.model4, newdata = test16_sparse)$pred) # the final prediction
+#head(predict.SuperLearner(layer.model4, newdata = test16_sparse)$pred) # the final prediction
 
 
 # # cross-validation to see which algorithms perfom best
@@ -297,38 +297,67 @@ head(predict.SuperLearner(layer.model4, newdata = test16_sparse)$pred) # the fin
 
 
 ### SUBSEMBLE ###--------------------------------------------
-library(subsemble)
-
-
-SL.ranger1 <- function(..., num.tress = 1000, mtry = 2, sample.fraction = 0.5) {
-  SL.randomForest(..., num.tress = num.tress, mtry = mtry, sample.fraction = sample.fraction)	}
-SL.xgboost1 <- function(..., 
-                       ntrees = 100) {
-  SL.xgboost(..., ntrees = ntrees)}
-SL.ipredbagg1 <- function(..., nbagg = 60) {
-  SL.ipredbagg(..., nbagg = nbagg)}
-
-
-learner <- c("SL.ranger1", "SL.xgboost1", "SL.ipredbagg1")
-metalearner <- "SL.lm"
-subsets <- 5 # if set to 1 we have the same as the function from SuperLearner
-
-fit <- subsemble(x = train16_sparse, 
-                 y = output_vector, 
-                 newx = test16_sparse, 
-                 family = gaussian(), 
-                 learner = learner, 
-                 metalearner = metalearner, 
-                 subsets = subsets, 
-                 cvControl = list(V = 5), #cross-validation
-                 learnControl = list('crossprod'), 
-                 parallel = 'multicore') #train each learner on each of the subsets
-
-
-fit$metafit #list of meta-learner
-fit$subfits #list of predictive models
-
-fit$pred # final predictions
+# library(subsemble)
+# 
+# ntrees1 = xgb_best_iteration
+# objective1 = params_xgb$objective
+# max_depth1 = params_xgb$max_depth
+# eta1 = params_xgb$eta
+# booster1 = params_xgb$booster
+# colsample_bytree1 = params_xgb$colsample_bytree
+# gamma1 = params_xgb$gamma
+# subsample1 = params_xgb$subsample
+# min_child_weight1 = params_xgb$min_child_weight
+# 
+# 
+# SL.ranger1 <- function(..., num.tress = 1000, mtry = 2, sample.fraction = 0.5) {
+#   SL.randomForest(..., num.tress = num.tress, mtry = mtry, sample.fraction = sample.fraction)	}
+# SL.xgboost1 <- function(...,
+#                        ntrees = ntrees1, 
+#                        objective = objective1, 
+#                        max_depth = max_depth1, 
+#                        eta = eta1,
+#                        booster = booster1, 
+#                        colsample_bytree = colsample_bytree1,
+#                        gamma = gamma1, 
+#                        subsample = subsample1,
+#                        min_child_weight = min_child_weight1
+#                        ) {
+#   SL.xgboost(..., 
+#              ntrees = ntrees, 
+#              objective = objective,
+#              max_depth = maxdepth,
+#              eta = eta,
+#              booster = booster,
+#              colsample_bytree = colsample_bytree,
+#              gamma = gamma,
+#              subsample = subsample,
+#              min_child_weight = min_child_weight 
+#              )}
+# SL.ipredbagg1 <- function(..., nbagg = 100, tree_depth = 15) {
+#   SL.ipredbagg(..., nbagg = nbagg, tree_depth = tree_depth)}
+# 
+# 
+# learner <- c("SL.ranger1", "SL.xgboost1", "SL.ipredbagg1")
+# metalearner <- "SL.lm"
+# subsets <- 5 # if set to 1 we have the same as the function from SuperLearner
+# 
+# fit <- subsemble(x = train16_sparse,
+#                  y = output_vector,
+#                  newx = test16_sparse,
+#                  family = gaussian(),
+#                  learner = learner,
+#                  metalearner = metalearner,
+#                  subsets = subsets,
+#                  cvControl = list(V = 5), #cross-validation
+#                  learnControl = list('crossprod'),
+#                  parallel = 'multicore') #train each learner on each of the subsets
+# 
+# 
+# fit$metafit #list of meta-learner
+# fit$subfits #list of predictive models
+# 
+# fit$pred # final predictions
 
 
 
@@ -336,8 +365,7 @@ fit$pred # final predictions
 ### TESTING THE MODEL ###--------------------------------------------
 
 # predict
-pred_stacked_test <- (predict.SuperLearner(layer.model4, newdata = test16_sparse))
-pred_stacked_test <- pred_stacked_test$pred
+pred_stacked_test <- layer.model4$SL.predict
 pred_stacked_train <- (predict.SuperLearner(layer.model4, newdata = train16_sparse))
 pred_stacked_train <- pred_stacked_train$pred
 
