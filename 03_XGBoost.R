@@ -34,7 +34,7 @@ colClasses = c(num_bathroom = 'numeric',
                area_live_finished = 'numeric_log',
                num_garage = 'numeric', 
                area_garage = 'numeric',
-               flag_tub_or_spa = 'factor',
+               flag_tub_or_spa = 'numeric',
                loc_latitude = 'numeric',
                loc_longitude = 'numeric',
                area_lot = 'numeric_log',
@@ -42,7 +42,7 @@ colClasses = c(num_bathroom = 'numeric',
                loc_zip  = 'numeric',
                num_pool = 'numeric',
                num_story = 'numeric',
-               flag_fireplace = 'factor',
+               flag_fireplace = 'numeric',
                num_tax_building = 'numeric_log',
                num_tax_total = 'numeric_log',
                num_tax_property = 'numeric_log',
@@ -52,8 +52,6 @@ colClasses = c(num_bathroom = 'numeric',
 for (i in colnames(house_only16_mv)) {
   if (colClasses[i][[1]] == 'numeric') {
     house_only16_mv[[i]] <- as.numeric(house_only16_mv[[i]])
-  } else if (colClasses[[i]] == 'factor') {
-    house_only16_mv[[i]] <- as.factor(house_only16_mv[[i]])
   } else if (colClasses[[i]] == 'numeric_log'){
     house_only16_mv[[i]] <- log(as.numeric(house_only16_mv[[i]]))
   }
@@ -91,16 +89,16 @@ train16 <- data[train_ind,]
 test16 <- data[-train_ind, ]
 
 # define training label = dependent variable
-output_vector = as.matrix(log(train16[,'num_tax_building']))
-test_vector = as.matrix(log(test16[,'num_tax_building']))
+output_vector = as.matrix((train16[,'num_tax_building']))
+test_vector = as.matrix((test16[,'num_tax_building']))
 
 #omit variables and convert to numeric again
 train16 <- train16 %>% dplyr::select(-omit)
 test16 <- test16 %>% dplyr::select(-omit)
 
 # convert categorical factor into dummy variables using one-hot encoding
-sparse_matrix_train <- sparse.model.matrix(log(num_tax_building)~.-1, data = train16)
-sparse_matrix_test <- sparse.model.matrix(log(num_tax_building)~.-1, data = test16)
+sparse_matrix_train <- sparse.model.matrix((num_tax_building)~.-1, data = train16)
+sparse_matrix_test <- sparse.model.matrix((num_tax_building)~.-1, data = test16)
 
 # check the dimnames crated by the one-hot encoding
 sparse_matrix_train@Dimnames[[2]]
@@ -199,7 +197,7 @@ dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
 # toc()
 
 
-# Find Optimized parameters 2  -----------------------------
+### FIND OPTIMIZED PARAMETERS ###  -----------------------------
 
 
 #set.seed(123)
@@ -264,7 +262,7 @@ mytune
 
 
 
-# Model 2: XGBoost with optimized parameters  -----------------------------
+### MODEL 2: XGBOOST WITH OPTIMIZED PARAMETERS ###  -----------------------------
 
 # take the parameters of mytune
 params_xgb <- list(booster = mytune$x$booster, 
@@ -293,7 +291,7 @@ xgbcv <- xgb.cv(params = params_xgb,
 xgb_best_iteration <- xgbcv$best_iteration
 
 
-# first training with optimized nround
+# training with optimized nrounds
 xgb2 <- xgb.train(params = params_xgb, 
                   data = dtrain, 
                   nrounds = xgb_best_iteration, 
@@ -302,28 +300,48 @@ xgb2 <- xgb.train(params = params_xgb,
                   eval_metric = "rmse"
 )
 
-# model prediction
-xgb2_pred <- predict(xgb2, dtest)
-rmse_xgb2 <- sqrt(mean((xgb2_pred - test_vector)^2))
-r2_xgb2 <- 1 - ( sum((test_vector-xgb2_pred)^2) / sum((test_vector-mean(test_vector))^2) )
 
-str(xgb2_pred)
+### TESTING THE MODEL ###--------------------------------------------
 
-# comparison_xgb simple regression ----------------------------------
+# predict
+xgb2_pred_train <- predict(xgb2, dtrain)
+xgb2_pred_test <- predict(xgb2, dtest)
+
+# metrics for train
+rmse_xgb2_train <- sqrt(mean((xgb2_pred_train - output_vector)^2))
+r2_xgb2_train <- 1 - ( sum((output_vector-xgb2_pred_train)^2) / sum((output_vector-mean(output_vector))^2) )
+adj_r2_xgb_train <- 1 - ((1 - r2_xgb2_train) * (nrow(output_vector) - 1)) / (nrow(output_vector) - ncol(output_vector) - 1)
+
+# metrics for test
+rmse_xgb2_test <- sqrt(mean((xgb2_pred_test - test_vector)^2))
+r2_xgb2_test <- 1 - ( sum((test_vector-xgb2_pred_test)^2) / sum((test_vector-mean(test_vector))^2) )
+adj_r2_xgb_test <- 1 - ((1 - r2_xgb2_test) * (nrow(test_vector) - 1)) / (nrow(test_vector) - ncol(test_vector) - 1)
+
+# combining results
+results_xgb_train <- rbind(rmse_xgb2_train, r2_xgb2_train, adj_r2_xgb_train)
+results_xgb_test <- rbind(rmse_xgb2_test, r2_xgb2_test, adj_r2_xgb_test)
+results_xgb <- data.frame(cbind(results_xgb_train, results_xgb_test))
+colnames(results_xgb) <- c("train_xgb", "test_xgb")
+rownames(results_xgb) <- c("RMSE", "R2", "ADJ_R2")
+
+errors_xgb <- xgb2_pred_test - test_vector
+
+### COMPARE RESULTS TO SIMPLE LM  ### --------------------------------------------
 train16_sparse <- data.frame(model.matrix(~ . -1, train16))
 test16_sparse <- data.frame(model.matrix(~ . -1, test16))
 
+# train and predict 
 model_lm = lm(num_tax_building ~ ., data = data.frame(train16_sparse))
 pred_lm <- log(predict(model_lm, (test16_sparse)))
 
 # Predict using simple regression
 rmse_lm <- sqrt(mean((pred_lm - test_vector)^2))
 r2_lm <- 1 - (sum((test_vector-pred_lm)^2) / sum((test_vector-mean(test_vector))^2) )
+adj_r2_lm <- 1 - ((1 - r2_lm) * (nrow(test_vector) - 1)) / (nrow(test_vector) - ncol(test_vector) - 1)
 
 
-# MODEL 3 - linear boosting ---------------------------
-"Note that linear boosting is great to capture linear relationships while trees are better at
-capturing non-linear relationship"
+### MODEL 3 LINEAR BOOSTING ###---------------------------
+# Note that linear boosting is great to capture linear relationships while trees are better at capturing non-linear relationship"
 # 
 # # take the parameters of mytune
 # params <- list(booster = "gblinear", 
@@ -374,22 +392,6 @@ capturing non-linear relationship"
 # r2_xgb3 <- 1 - sum((test_vector-xgb3_pred)^2) / sum((test_vector-mean(xgb3_pred))^2)
 # 
 
-# COMPARE RMSE and R2 -----------------------------
-comparison_xgb <- data.frame(matrix(data = NA, nrow = 4, ncol = 2, dimnames = list(c('xgb_tree 1', 'xgb_tree 2', 'xgb_linear 3', 'linear glm'), c('RMSE', 'R2'))))
-
-#comparison_xgb$RMSE[1] <- rmse_xgb1
-comparison_xgb$RMSE[2] <- rmse_xgb2
-#comparison_xgb$RMSE[3] <- rmse_xgb3
-comparison_xgb$RMSE[4] <- rmse_lm
-
-
-#comparison_xgb$R2[1] <- r2_xgb1
-comparison_xgb$R2[2] <- r2_xgb2
-#comparison_xgb$R2[3] <- r2_xgb3
-comparison_xgb$R2[4] <- r2_lm
-
-
-comparison_xgb
 
 # PLOTS --------------------------------------------------
 
@@ -399,8 +401,8 @@ xgb.plot.tree(feature_names = names(dtrain),
               trees = 1)
 
 # Plot importance
-importance2 <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb2)
-xgb_importance <- xgb.plot.importance(importance_matrix = importance2, top_n = 15)
+importance <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb2)
+xgb_importance <- xgb.plot.importance(importance_matrix = importance, top_n = 15)
 plot_xgb_importance <- xgb_importance %>%
   mutate(Feature = fct_reorder(Feature, Importance)) %>%
   ggplot(aes(x=Feature, y=Importance)) +
@@ -417,7 +419,7 @@ variable2 = xgb_importance$Feature[2]
 variable3 = xgb_importance$Feature[3]
 
 # merge dataframes
-merged_df <- data.frame(cbind(test_vector, xgb2_pred, test16)) #by 0 merges based on index
+merged_df <- data.frame(cbind(xgb2_pred_test, test16_sparse)) #by 0 merges based on index
 merged_df <- merged_df[order(merged_df$num_tax_building),]
 merged_df$initialindex <- row.names(merged_df)
 row.names(merged_df) <- NULL
@@ -425,7 +427,7 @@ row.names(merged_df) <- NULL
 # Plot predicted vs. actual 
 colors <- c("actual" = "red", "predicted" = "blue")
 plot_xgb <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) +
-  geom_point(aes(y = xgb2_pred, color = 'predicted')) +
+  geom_point(aes(y = xgb2_pred_test, color = 'predicted')) +
   geom_point(aes(y = num_tax_building, color = 'actual')) +
   ggtitle('Actual vs. predicted values') + 
   scale_color_manual(values = colors) +
@@ -450,24 +452,24 @@ plot_v3 <- ggplot(data = merged_df) +
   ggtitle(paste0('Log(num_tax_building) vs. ', variable3))
 plot_v3
 
-# # version 2 for plotting
-# merged_df_long <- gather(merged_df, key = variable, value = value, 
-#                          c("xgb2_pred", "num_tax_total"))
-# ggplot(merged_df_long, aes(x=as.numeric(initialindex), y = value, group = variable, colour = variable)) + 
-#   geom_point()
-
 
 # SAVE MODELS AND PLOTS -----------------------------
 
 # save plot
+ggsave('plot_xgb_v1.png', path = './Plots/', plot = plot_v1, device = 'png')
+ggsave('plot_xgb_v2.png', path = './Plots/', plot = plot_v2, device = 'png')
+ggsave('plot_xgb_v3.png', path = './Plots/', plot = plot_v3, device = 'png')
 ggsave('plot_xgb.png', path = './Plots/', plot = plot_xgb, device = 'png')
 ggsave('plot_xgb_importance.png', path = './Plots/', plot = plot_xgb_importance, device = 'png')
 
 # save model to local file
 xgb.save(xgb2, "./Models/xgboost.model")
 
-# save comparison_xgb
-save(comparison_xgb,file="./Models/results_xgboost.Rdata")
+# save results
+save(results_xgb,file="./Models/results_xgboost.RData")
+
+# save errors
+save(errors_xgb, file = "./Models/errors_xgb.RData")
 
 # save parameters
 save(params_xgb, file = "./Models/params_xgb.RData")

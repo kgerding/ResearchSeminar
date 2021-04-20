@@ -95,7 +95,7 @@ library(LiblineaR)
 
 #Regression with SVM
 tic()
-modelsvm = svm(num_tax_total ~ ., data = train16_sparse,
+modelsvm = svm(num_tax_building ~ ., data = train16_sparse,
                type = 'eps-regression',
                kernel = 'linear',
                scale = FALSE, # don't scale data as we already did
@@ -106,7 +106,7 @@ modelsvm = svm(num_tax_total ~ ., data = train16_sparse,
               cross = 5) # cross-validation
 toc()
 
-LiblineaR(num_tax_total ~ ., data = as.matrix(train16_sparse))
+#LiblineaR(num_tax_total ~ ., data = as.matrix(train16_sparse))
 
 #Regression with LibineaR
 # tic()
@@ -143,26 +143,26 @@ str(test_vector)
 str(pred_lm)
 
 ## Tuning SVR model ---------------------------------------------------
-# by varying values of maximum allowable epsilon and cost parameter
-# tic()
-# OptModelsvm=tune(svm, num_tax_total ~ ., data = train16_sparse,
-#                  type = 'eps-regression', #e-insensitive loss regression
-#                  kernel = 'linear', 
-#                  scale = FALSE,
-#                  cross = 5,
-#                  epsilon = 0.3,
-#                  ranges=list(cost=c(0.01, 0.1, 1, 10, 100)))
-# toc()
-# 
-# 
-# #Print optimum value of parameters
-# print(OptModelsvm)
-# 
-# #Plot the performance of SVM Regression model
-# plot(OptModelsvm)
-# 
-# #Find out the best model
-# BstModel=OptModelsvm$best.model
+#by varying values of maximum allowable epsilon and cost parameter
+tic()
+OptModelsvm=tune(svm, num_tax_building ~ ., data = train16_sparse,
+                 type = 'eps-regression', #e-insensitive loss regression
+                 kernel = 'linear',
+                 scale = FALSE,
+                 cross = 5,
+                 epsilon = 0.3,
+                 ranges=list(cost=c(0.01, 0.1, 1, 10, 100)))
+toc()
+
+
+#Print optimum value of parameters
+print(OptModelsvm)
+
+#Plot the performance of SVM Regression model
+plot(OptModelsvm)
+
+#Find out the best model
+BstModel=OptModelsvm$best.model
 
 
 # TESTING ---------------------------------------------
