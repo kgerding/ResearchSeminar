@@ -3,51 +3,60 @@
 
 ### Packages used --------------------------------------------------------------
 
-library(tidyverse)
-library(data.table)
-library(quantmod)
-library(TTR)
-library(PerformanceAnalytics)
-library(ggplot2)
-library(spdep)
-library(dplyr)
-library(maptools)
-library(spatialreg)
-library(leaflet)
-library(leaflet.extras)
-library(rgdal)
-library(mapview)
-library(rgeos)
-library(lmtest)
-library(sandwich)
-
-
-
-rm(list=ls())
+  library(tidyverse)
+  library(data.table)
+  library(quantmod)
+  library(TTR)
+  library(PerformanceAnalytics)
+  library(ggplot2)
+  library(spdep)
+  library(dplyr)
+  library(maptools)
+  library(spatialreg)
+  library(leaflet)
+  library(leaflet.extras)
+  library(rgdal)
+  library(mapview)
+  library(rgeos)
+  library(lmtest)
+  library(sandwich)
+  library(Hmisc)
+  library(psych)
+  library(olsrr)
+  library(jtools)
+  library(huxtable)
+  library(officer)
+  library(flextable)
+  
+  rm(list=ls())
 
 ### Read in Data ---------------------------------------------------------------
 
-# prices from Zillow transactions 2016 and 2017
-prices2016 <- read.csv('./Data/properties_2016.csv', sep = ',')
-prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
-
-# additional factor description
-id <- read.csv('./Info on Data/id.csv', sep = ',')
-heating_id <- read.csv('./Info on Data/heating_id.csv', sep = ',')
-quality_id <- read.csv('./Info on Data/quality_id.csv', sep = ',')
-ac_id <- read.csv('./Info on Data/ac_id.csv', sep = ',')
-
-
-# change colnames
-colnames(id) <- c('type_zoning_landuse', 'factor')
-colnames(heating_id) <- c('type_heating', 'heating_factor')
-colnames(quality_id) <- c('type_quality', 'quality_factor')
-colnames(ac_id) <- c('type_ac', 'ac_factor')
+  # prices from Zillow transactions 2016 and 2017
+  prices2016 <- read.csv('./Data/properties_2016.csv', sep = ',')
+  prices2017 <- read.csv('./Data/properties_2017.csv', sep = ',')
+  
+  # additional factor description
+  id <- read.csv('./Info on Data/id.csv', sep = ',')
+  heating_id <- read.csv('./Info on Data/heating_id.csv', sep = ',')
+  quality_id <- read.csv('./Info on Data/quality_id.csv', sep = ',')
+  ac_id <- read.csv('./Info on Data/ac_id.csv', sep = ',')
+  
+  # change colnames
+  colnames(id) <- c('type_zoning_landuse', 'factor')
+  colnames(heating_id) <- c('type_heating', 'heating_factor')
+  colnames(quality_id) <- c('type_quality', 'quality_factor')
+  colnames(ac_id) <- c('type_ac', 'ac_factor')
 
 ### PART 1: DATA INSPECTION ----------------------------------------------------
-
-# change prices to respective year 2016 or 2017
-  p2016 <- prices2016 %>% rename(
+  
+  #################################################
+  # change prices to respective year 2016 or 2017 #
+  #################################################
+  
+  priceyear <- prices2017
+  
+  p2016 <- priceyear %>% rename(
     id_parcel = parcelid,
     year_built = yearbuilt,
     area_basement = basementsqft,
@@ -108,7 +117,7 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
     type_architect = architecturalstyletypeid
   )
   
-  ## Step 1: Transform data ------------------------------------------------------
+## Step 1: Transform data ------------------------------------------------------
   
   # transform dummies and factors
   p2016$flag_tub_or_spa[p2016$flag_tub_or_spa == 'true'] <- 1
@@ -149,7 +158,7 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   house_only16 <- p2016[(p2016$num_bedroom > 0),] 
   house_only16 <- house_only16[(house_only16$num_bathroom > 0),] 
   
-  ## Step 4: Eliminate columns with more than 20% NAs -------------------
+## Step 2: Eliminate NAs -------------------------------------------------------
   
   # NA omitting -> order is consciously chosen
   # to extract as much variation as possible from data
@@ -165,12 +174,9 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   house_only16 <- house_only16[!is.na(house_only16$num_story),]
   house_only16 <- house_only16[!is.na(house_only16$num_tax_property),]
   
-  # since we focus only on single family residential 0 bed or 0 baths does not make sense to include
+  # since we focus only on single family residential
+  # 0 bed or 0 baths does not make sense to include
   house_only16 <- house_only16[house_only16$factor == 'Single Family Residential',]
-  
-  # light data set
-  house_only16_factor <- house_only16[!is.na(house_only16$quality_factor),]
-  house_only16_factor <- house_only16_factor[!is.na(house_only16_factor$ac_factor),]
   
   # reintroduce 0 pools
   house_only16$num_pool[is.na(house_only16$num_pool)] <- 0
@@ -186,7 +192,6 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   title(main = '% NAs in 2017 Data')
   
   # omit variables with high NAs or no conceptual use
-  
   omit <- c('id_parcel','area_basement', 'loc_county', 'loc_city', 'loc_zip',
             'area_liveperi_finished', 'type_framing', 'area_total_finished',
             'num_unit', 'type_story', 'type_architect', 'type_material',
@@ -201,7 +206,7 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
             'num_tax_land', 'tax_assess_year', 'num_bath', 'area_total_calc',
             'num_room'
             )
-
+  # omit variables
   house_only16 <- house_only16 %>% select(-omit)
   
   # histrogram plotting
@@ -209,10 +214,99 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
                'num_story','num_bedroom', 'num_bathroom',
                'num_garage', 'num_pool', 'age')
   
+  # big histogram plot
   subhouse_only16 <- house_only16[,columns]
-  library(Hmisc)
   hist.data.frame(subhouse_only16)
   
+  # some filtering of outliers - detection done by plotting (see below)
+  
+  # we need to filter the outlier of high area_live finished: 
+  house_only16 <- house_only16[house_only16$num_tax_building < 7500000,]
+  house_only16 <- house_only16[house_only16$age < 150,]
+  
+  # we need to filter the outlier of high area_live finished: 
+  house_only16 <- house_only16[house_only16$area_live_finished < 20000,]
+  
+  # we need to filter the outlier of high area_lot
+  # but very low building structure value 
+  house_only16 <- house_only16[house_only16$area_lot < 100000,]
+  
+## Step 3: Plot the variable relationships and remove outliers -----------------
+  
+  # plot bedroom vs tax
+  ggplot(data = house_only16, aes(x = num_bedroom, y = log(num_tax_building))) +
+    geom_point() + 
+    ggtitle("2017 House Price vs # bedrooms") +
+    theme_bw()
+  
+  # plot bathroom vs tax
+  ggplot(data =  house_only16, aes(x = num_bathroom, y = log(num_tax_building))) +
+    geom_point() + 
+    ggtitle("2017 House Price vs # bathrooms") +
+    theme_bw()
+  
+  # plot size vs tax
+  ggplot(data = house_only16, aes(x = area_live_finished, y = (num_tax_building))) +
+    geom_point() +
+    ggtitle("2017 House Price vs living area") +
+    theme_bw()
+
+  # plot age vs tax
+  ggplot(data = house_only16, aes(x = age, y = (log(num_tax_building)))) +
+    geom_point() +
+    ggtitle("2017 House Price vs Age") +
+    theme_bw()
+  
+  # plot area_lot vs tax
+  ggplot(data = house_only16, aes(x = area_lot, y = num_tax_building)) +
+    geom_point() +
+    ggtitle("2017 House Price vs lot size") +
+    theme_bw()
+  
+### PART 2 ALGORITHMS ###-------------------------------------------------------
+  
+  # define logs for simplicity
+  house_only16$logbuild <- log(house_only16$num_tax_building)
+  house_only16$logarea <- log(house_only16$area_live_finished)
+  house_only16$logage <- log(house_only16$age)
+  house_only16$loglot <- log(house_only16$area_lot)
+  house_only16$loggarage <- ifelse(house_only16$num_garage > 0,log(house_only16$num_garage),0)
+  
+  # Regressions 
+  model <- logbuild ~ logarea + loglot + loggarage + logage + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
+  
+  # simple regression of building value
+  hedonic_build <- lm(model,data = house_only16)
+  
+  # output
+  summary(hedonic_build)
+  
+  # plot residuals
+  plot(hedonic_build$residuals)
+  
+  # Breusch Pagan test for heteroscedasticity
+  bptest(hedonic_build)
+  
+  # robsut standard erros
+  hedonic_build_robust <- coeftest(hedonic_build, vcov = vcovHC(hedonic_build, type = "HC0"))
+  
+  #plot residuals
+  qqnorm(hedonic_build$residuals, pch = 1, frame = FALSE)
+  qqline(hedonic_build$residuals, col = "steelblue", lwd = 2)
+
+  # check multicollinearity
+  ols_vif_tol(hedonic_build)
+  
+  # Relative importance of independent variables in determining Y. How much
+  # each variable uniquely contributes to R2 over and above that which can be
+  # accounted for by the other predictors.
+  ols_correlations(hedonic_build)
+  
+  # build nice regression table
+  export_summs(hedonic_build_robust,
+               number_format = "%.3f",
+               file.name = "2017building.docx", to.file = 'docx')
+
 # Spatial Regression -----------------------------------------------------------  
   
   # compile long and lat data in H3
@@ -303,113 +397,3 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   # plot residuals
   spplot(chi.poly,"chi.sar.res",at=seq(min(chi.poly@data$chi.sar.res,na.rm=TRUE),max(chi.poly@data$chi.sar,na.rm=TRUE), length=12), col.regions=rev(brewer.pal(11,"RdBu")))
   
-## Step 5: Eliminate properties without buildings and very low values ----------
-  
-  # drop building values below 50'000
-  hist(log(house_only16$num_tax_building),breaks = 100)
-
-## Step 6: Plot the variable relationships and remove outliers -----------------
-  
-  # plot bedroom vs tax
-  ggplot(data = house_only16, aes(x = num_bedroom, y = log(num_tax_building))) +
-    geom_point() + 
-    ggtitle("2017 House Price vs # bedrooms") +
-    theme_bw()
-  ggsave("2017bed.jpeg", height = 7, width = 6, dpi=700)
-  
-  # plot bathroom vs tax
-  ggplot(data =  house_only16, aes(x = num_bathroom, y = log(num_tax_building))) +
-    geom_point() + 
-    ggtitle("2017 House Price vs # bathrooms") +
-    theme_bw()
-  ggsave("2017bath.jpeg", height = 7, width = 6, dpi=700)
-  
-  # plot size vs tax
-  ggplot(data = house_only16, aes(x = area_live_finished, y = (num_tax_building))) +
-    geom_point() +
-    ggtitle("2017 House Price vs living area") +
-    theme_bw()
-  ggsave("2017area.jpeg", height = 7, width = 6, dpi=700)
-
-  # plot age vs tax
-  ggplot(data = house_only16, aes(x = age, y = (log(num_tax_building)))) +
-    geom_point() +
-    ggtitle("2017 House Price vs Age") +
-    theme_bw()
-  ggsave("2017age.jpeg", height = 7, width = 6, dpi=700)
-  
-  # plot area_lot vs tax
-  ggplot(data = house_only16, aes(x = area_lot, y = num_tax_building)) +
-    geom_point() +
-    ggtitle("2017 House Price vs lot size") +
-    theme_bw()
-  ggsave("2017lot.jpeg", height = 7, width = 6, dpi=700)
-  
-  # some filtering of outliers
-  
-  # we need to filter the outlier of high area_live finished: 
-  house_only16 <- house_only16[house_only16$num_tax_building < 7500000,]
-  house_only16 <- house_only16[house_only16$age < 150,]
-  
-  # we need to filter the outlier of high area_live finished: 
-  house_only16 <- house_only16[house_only16$area_live_finished < 20000,]
-  
-  # we need to filter the outlier of high area_lot but very low building structure value 
-  house_only16 <- house_only16[house_only16$area_lot < 100000,]
-  
-  library(psych)
-  pairs.panels(subset, 
-               method = "pearson", # correlation method
-               hist.col = "#00AFBB",
-               density = FALSE,  # show density plots
-               ellipses = FALSE # show correlation ellipses
-  )
-  
-### PART 2 ALGORITHMS ###-------------------------------------------------------
-  
-  house_only16$amountBuilding <- house_only16$area_live_finished/house_only16$area_lot
-  
-  house_only16$logbuild <- log(house_only16$num_tax_building)
-  house_only16$logarea <- log(house_only16$area_live_finished)
-  house_only16$logage <- log(house_only16$age)
-  house_only16$loglot <- log(house_only16$area_lot)
-  house_only16$loggarage <- ifelse(house_only16$num_garage > 0,log(house_only16$num_garage),0)
-  
-  # Regressions 
-  model <- logbuild ~ logarea + loglot + loggarage + logage + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
-  
-  # simple regression of building value
-  hedonic_build <- lm(model,data = house_only16)
-  
-  summary(hedonic_build)
-  plot(hedonic_build$residuals)
-  bptest(hedonic_build)
-  hedonic_build_robust <- coeftest(hedonic_build, vcov = vcovHC(hedonic_build, type = "HC0"))
-  
-  
-  
-  #plot residuals
-  qqnorm(hedonic_build$residuals, pch = 1, frame = FALSE)
-  qqline(hedonic_build$residuals, col = "steelblue", lwd = 2)
-
-  library(olsrr)
-  # check multicollinearity
-  ols_vif_tol(hedonic_build)
-  
-  # Relative importance of independent variables in determining Y. How much
-  # each variable uniquely contributes to R2 over and above that which can be
-  # accounted for by the other predictors.
-  ols_correlations(hedonic_build)
-  
-  
-  # build nice regression table
-  
-  library(jtools)
-  library(huxtable)
-  library(officer)
-  library(flextable)
-  
-  export_summs(hedonic_build_robust,
-               number_format = "%.3f",
-               file.name = "2017building.docx", to.file = 'docx')
-
