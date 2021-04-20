@@ -358,13 +358,20 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   house_only16 <- house_only16[house_only16$area_lot < 100000,]
   
   library("PerformanceAnalytics")
-  my_data <- house_only16[,c(1,2,3,4,6,10,11,12,13)]
-  chart.Correlation(my_data, histogram=TRUE, pch=19)
+  my_data <- house_only16[,c(18,19,20,2,1,11,4,10,12,6)]
+  chart.Correlation(my_data, histogram=TRUE, pch="+")
   
 ### PART 2 ALGORITHMS ###-------------------------------------------------------
   
-# Regressions 
-  model <- log(num_tax_building) ~ log(area_live_finished) + log(age) + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
+  house_only16$amountBuilding <- house_only16$area_live_finished/house_only16$area_lot
+  
+  house_only16$logbuild <- log(house_only16$num_tax_building)
+  house_only16$logarea <- log(house_only16$area_live_finished)
+  house_only16$logage <- log(house_only16$age)
+  house_only16$loglot <- log(house_only16$area_lot)
+  
+  # Regressions 
+  model <- log(num_tax_building) ~ log(area_live_finished) + log(amountBuilding) + log(age) + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
   
   # simple regression of building value
   hedonic_build <- lm(model,data = house_only16)
@@ -384,3 +391,4 @@ colnames(ac_id) <- c('type_ac', 'ac_factor')
   export_summs(hedonic_build_robust,
                number_format = "%.3f",
                file.name = "2017building.docx", to.file = 'docx')
+
