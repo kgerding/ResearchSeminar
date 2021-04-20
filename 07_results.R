@@ -26,8 +26,8 @@ errors <- (data.frame(errors) %>% gather(Algorithm, prediction))
 
 # Plot boxplot
 boxplot <- ggplot(errors, aes(x=Algorithm, y=prediction)) + 
-  geom_boxplot(outlier.colour="red", outlier.shape=8,
-               outlier.size=2) + 
+  geom_boxplot(outlier.colour="red", outlier.shape=8, outlier.size=2) + 
+  stat_summary(fun.y=mean, geom="point", shape=23, size=4) +
   ggtitle('Predicted Values of all Algorithms')
 boxplot
 
