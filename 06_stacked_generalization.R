@@ -230,12 +230,11 @@ str(train16_sparse)
 # plot(cv.model3)
 
 
-### HYPERPARAMETER TUNING ### ------------------------------------------------
+### CREATE INDIVIDUAL LEARNERS ### ------------------------------------------------
 
 # Load coefficient from other models
 load("./Models/params_xgb.RData")
 load("./Models/xgb_best_iteration.RData")
-
 
 # Create learners 
 learner_ranger <- create.Learner("SL.ranger", params=list(num.trees=1000, 
@@ -246,24 +245,8 @@ learner_xgb <- create.Learner("SL.xgboost", params=list(ntrees = xgb_best_iterat
                                                         max_depth = params_xgb$max_depth, 
                                                         shrinkage = params_xgb$eta, 
                                                         verbose = TRUE))
-learner_svm <- create.Learner("SL.svm", params=list())
 learner_bagg <- create.Learner("SL.ipredbagg", params=list(nbagg=60)) # we use 60 as we did in our simple bagging models
 
-
-# cv.model4 <- CV.SuperLearner(Y = train16$num_tax_building,
-#                              X = data.frame(train16_sparse),
-#                              family = gaussian(),
-#                              verbose = TRUE,
-#                              parallel = 'multicore',
-#                              method = "method.NNLS", # non-negative least sqaures
-#                              V = 5,
-#                              SL.library=list("SL.lm", 
-#                                              learner_ranger$names, 
-#                                              learner_xgb$names, 
-#                                              learner_svm$names, 
-#                                              learner_bagg$names))
-# 
-# plot(cv.model4)
 
 # Parallelization
 options(mc.cores = detectCores())
@@ -280,11 +263,24 @@ layer.model4 <- mcSuperLearner(Y = train16$num_tax_building,
                                SL.library=list("SL.lm", 
                                                learner_ranger$names, 
                                                learner_xgb$names, 
-                                               learner_svm$names, 
                                                learner_bagg$names))
 
 # check the final coefficients
 layer.model4
+
+# cross-validation to see which algorithms perfom best
+cv.model4 <- CV.SuperLearner(Y = train16$num_tax_building,
+                             X = data.frame(train16_sparse),
+                             family = gaussian(),
+                             verbose = TRUE,
+                             parallel = 'multicore',
+                             method = "method.NNLS", # non-negative least sqaures
+                             V = 5,
+                             SL.library=list("SL.lm",
+                                             learner_ranger$names,
+                                             learner_xgb$names,
+                                             learner_bagg$names))
+
 
 ### TESTING THE MODEL ###--------------------------------------------
 
@@ -351,19 +347,24 @@ plot_stacked <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)
   labs(x = 'Index', y = 'Log(num_tax_building)')
 plot_stacked
 
+# Plot CV-Model
+plot(cv.model4)
+
+
 
 ### SAVE PLOTS AND DATAFRAMES ### --------------------------------------------
 
-# save plot
+# save actual vs. predicted
 ggsave('plot_stacked.png', path = './Plots/', plot = plot_stacked, device = 'png')
+
+# save cv model plot
+ggsave('plot_stacked_cv.png', path = './Plots/', plot = cv.model4, device = 'png')
 
 # save comparison_xgb
 save(results_stacked,file="./Models/results_stacked.Rdata")
 
 # save errors of predictions on test
 save(errors_stacked,file="./Models/errors_stacked.Rdata")
-
-
 
 # stop the timer
 toc()
