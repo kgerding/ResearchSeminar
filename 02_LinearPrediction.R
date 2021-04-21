@@ -40,7 +40,7 @@ test_vector <- matrix(test16$logbuild)
 hedonic_build <- lm(model, data = train16)
 
 # prediction with linear models
-hedonic_pred_train = predict(hedonic_build_train, newdata = train16)
+hedonic_pred_train = predict(hedonic_build, newdata = train16)
 hedonic_pred = predict(hedonic_build, newdata = test16)
 
 # plotting
@@ -88,7 +88,7 @@ plot_lin
 
 
 # save results
-save(results_lin,file="./Models/results_xgboost.RData")
+save(results_lin,file="./Models/results_lin.RData")
 
 # save errors
-save(errors_lin, file = "./Models/errors_xgb.RData")
+save(errors_lin, file = "./Models/errors_lin.RData")
