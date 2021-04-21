@@ -40,7 +40,7 @@ test_vector <- matrix(test16$logbuild)
 hedonic_build <- lm(model, data = train16)
 
 # prediction with linear models
-hedonic_pred_train = predict(hedonic_build_train, newdata = train16)
+hedonic_pred_train = predict(hedonic_build, newdata = train16)
 hedonic_pred = predict(hedonic_build, newdata = test16)
 
 # plotting
@@ -85,3 +85,10 @@ plot_lin <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) 
   scale_color_manual(values = colors) +
   labs(x = 'Index', y = 'Log(num_tax_building)')
 plot_lin
+
+
+# save results
+save(results_lin,file="./Models/results_lin.RData")
+
+# save errors
+save(errors_lin, file = "./Models/errors_lin.RData")
