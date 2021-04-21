@@ -54,7 +54,7 @@
   # change prices to respective year 2016 or 2017 #
   #################################################
   
-  priceyear <- prices2017
+  priceyear <- prices2016
   
   p2016 <- priceyear %>% rename(
     id_parcel = parcelid,
@@ -331,18 +331,6 @@
   
   pal <- colorBin("YlOrRd", domain = hexagons$accidents)
   
-  map <- leaflet(data = hexagons, width = "100%") %>%
-    addProviderTiles("Stamen.Toner") %>%
-    addPolygons(
-      weight = 2,
-      color = "white",
-      fillColor = ~ pal(accidents),
-      fillOpacity = 0.8,
-      label = ~ sprintf("%i accidents (%s)", accidents, index)
-    )
-  
-  map
-  
   # Get the center of the hexagon
   centers <- data.frame(h3_to_geo(h3_index))
   
@@ -355,6 +343,22 @@
   
   # aggregate to Zones
   agg2016 <- aggregate(step, list(step$Zone), mean)
+  
+  # plot map
+  map <- leaflet(data = hexagons, width = "100%") %>%
+    addProviderTiles("Stamen.Toner") %>%
+    addPolygons(
+      weight = 2,
+      color = "white",
+      fillColor = ~ pal(accidents),
+      fillOpacity = 0.8,
+      label = ~ sprintf("%i accidents (%s)", accidents, index)
+    ) %>%
+    addLabelOnlyMarkers(data = centers,
+                        lng = centers$lng, lat = centers$lat, label = centers$Zone,
+                        labelOptions = labelOptions(noHide = TRUE, direction = 'top', textOnly = TRUE))
+  
+  map
   
   # detect spatial autocorrelation
   la.dists <- as.matrix(dist(cbind(agg2016$lng, agg2016$lat)))

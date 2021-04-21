@@ -175,18 +175,24 @@ ggsave('plot_bag.png', plot = plot_bag, path = './Plots/', device = 'png')
 
 
 # Plot importance
+vi <- tree_rs %>%
+  pull_workflow_fit()
 
-importance <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb2)
-bag_importance <- xgb.plot.importance(importance_matrix = importance, top_n = 15)
+vi <- vi$fit
 
-plot_xgb_importance <- bag_importance %>%
-  mutate(Feature = fct_reorder(Feature, Importance)) %>%
-  ggplot(aes(x=Feature, y=Importance)) +
+vi <- vi$imp
+
+
+bag_importance <- vi
+bag_importance$term <- factor(bag_importance$term, levels = bag_importance$term[order(bag_importance$value)])
+
+plot_bag_importance <- bag_importance %>%
+  ggplot(aes(x=term, y=value)) +
   geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
   coord_flip() +
   xlab("") +
   theme_bw() +
-  ggtitle('Feature Importance Plot for XG-Boost')
+  ggtitle('Feature Importance Plot for Bagging')
 plot_bag_importance
 
 ggsave('plot_bag_imp.png', plot = plot_bag_importance, path = './Plots/', device = 'png')
