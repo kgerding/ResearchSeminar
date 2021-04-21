@@ -1,5 +1,7 @@
-# Rsearch Seminar: Random Forest  ----------------------------------------------
+#########################################################
+### RANDOM FOREST -----------------------------------
 # Authors: Tim Graf, Kilian Gerding
+#########################################################
 
 ### Packages used --------------------------------------------------------------
 
@@ -8,6 +10,8 @@ library(ggplot2)
 library(doParallel)  
 library(foreach)
 library(data.table)
+library(forcats)
+
 
 # for bagging
 library(caret)
@@ -31,9 +35,18 @@ library(tune)
 library(recipes)
 library(rsample)
 library(yardstick)
+library(ranger)
+library(e1071)
+library(dplyr)
+
+
+# for parallel
+library(doParallel)
+library(tictoc)
 
 
 rm(list=ls())
+tic()
 
 ### PART 1: Prep Data ----------------------------------------------------------
 
@@ -41,6 +54,10 @@ rm(list=ls())
 setwd('/Users/tgraf/Google Drive/Uni SG/Master/Research Seminar /Repository')
 
 data <- fread('./Data/2016.csv', drop = 'V1')
+
+# for computational reasons
+data <- data[1:10000]
+
 
 # define logs for simplicity
 data$logbuild <- log(data$num_tax_building)
@@ -69,39 +86,55 @@ test_vector <- matrix(test16$logbuild)
 
 ### PART 2: Prediction of Random Forest with Cross Validation ------------------
 
-# random tuning
 
-# Random Search
-control <- trainControl(method="repeatedcv", number=10, repeats=5, search="random")
+# set up parallel
+cl<-makePSOCKcluster(detectCores()-2)
+registerDoParallel(cl)
 
-set.seed(123)
-tunegrid <- expand.grid(.mtry=c(1:15))
-rf_random <- train(model, data=train16, method="rf", metric='RMSE', tuneGrid=tunegrid, trControl=control)
-print(rf_random)
-plot(rf_random)
+# # Random Search (this is computationally intense)
+# bestMtry <- tuneRF(x = train16, y = output_vector, stepFactor = 1.5, improve = 1e-5, ntree = 100)
+# print(bestMtry)
 
-price_forest <- randomForest(
-  model,
-  data = train16,
-  mtry = 3, 
-  importance = TRUE,
-  ntrees = 500
-)
+# train the model
+price_forest <- ranger(model, 
+                       data = train16,
+                       num.trees = 100, 
+                       mtry = round(11/3), 
+                       
+                       # permutation importance. The basic idea is to consider a variable important if it has a positive effect on the 
+                       #prediction accuracy (classification), or MSE (regression)
+                       importance = 'permutation', 
+                       
+                       num.threads = detectCores(),
+                       verbose = TRUE)
+stopCluster(cl)
 
-# show results
-price_forest
 
-# plot RSME
-plot(price_forest, col = "blue", lwd = 2, main = "Bagged Trees: Error vs Number of Trees")
-grid()
+### PLOTTING ### ---------------------------------------
 
 # variable importance
-varImpPlot(price_forest, type = 1, main = 'Relative Importance of Variables')
+varImp <- data.frame(price_forest$variable.importance)
+varImp['variable'] <- rownames(varImp)
+colnames(varImp) <- c('importance', 'variable')
+rownames(varImp) <- NULL
 
-price_forest_pred = predict(price_forest, newdata = test16)
-price_forest_pred_train = predict(price_forest, newdata = train16)
+# Plot importance
+plot_rf_importance <- varImp %>%
+  mutate(variable = fct_reorder(variable, importance)) %>%
+  ggplot(aes(x=variable, y=importance)) +
+  geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
+  coord_flip() +
+  xlab("") +
+  theme_bw() +
+  ggtitle('Feature Importance Plot for Random Forest')
+plot_rf_importance
 
-#plotting
+price_forest_pred = predict(price_forest, data = test16)
+price_forest_pred <- price_forest_pred$predictions
+price_forest_pred_train = predict(price_forest, data = train16)
+price_forest_pred_train <- price_forest_pred_train$predictions
+
+#plotting predicted vs. actual 
 plot(price_forest_pred, log(test16$num_tax_building),
      xlab = "Predicted", ylab = "Actual",
      main = "Predicted vs Actual: Linear Model, Test Data",
@@ -143,7 +176,7 @@ colors <- c("actual" = "red", "predicted" = "blue")
 plot_rf <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) +
   geom_point(aes(y = price_forest_pred, color = 'predicted')) +
   geom_point(aes(y = logbuild, color = 'actual')) +
-  ggtitle('Hedonic Regression: Actual vs. predicted values') + 
+  ggtitle('Random Forest: Actual vs. predicted values') + 
   scale_color_manual(values = colors) +
   labs(x = 'Index', y = 'Log(num_tax_building)')
 plot_rf
@@ -152,16 +185,16 @@ plot_rf
 ### SAVE PLOTS AND DATAFRAMES ### --------------------------------------------
 
 # save actual vs. predicted
-ggsave('plot_stacked.png', path = './Plots/', plot = plot_stacked, device = 'png')
+ggsave('plot_rf.png', path = './Plots/', plot = plot_rf, device = 'png')
 
-# save cv model plot
-ggsave('plot_stacked_cv.png', path = './Plots/', plot = cv.model4, device = 'png')
+# rf importance
+ggsave('plot_rf_importance.png', path = './Plots/', plot = plot_rf_importance, device = 'png')
 
 # save comparison_xgb
-save(results_stacked,file="./Models/results_stacked.Rdata")
+save(results_rf,file="./Models/results_rf.Rdata")
 
 # save errors of predictions on test
-save(errors_stacked,file="./Models/errors_stacked.Rdata")
+save(errors_rf,file="./Models/errors_rf.Rdata")
 
 # stop the timer
 toc()

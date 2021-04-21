@@ -20,7 +20,7 @@ load("./Models/errors_bagging.RData")
 load("./Models/errors_lm.RData")
 
 #errors <- cbind(errors_stacked, errors_xgb, errors_randomforest, errors_bagging, errors_lm)
-errors <- cbind(errors_stacked[1:2500], errors_xgb)
+errors <- cbind(errors_stacked, errors_xgb)
 colnames(errors) <- c("Stacked_Generalization", "XGBoost")
 errors <- (data.frame(errors) %>% gather(Algorithm, prediction))
 
@@ -51,6 +51,9 @@ all_results_test <- cbind(results_stacked['test_stacked'], results_xgb['test_xgb
 save(all_results_train, file = "./Models/all_results_train")
 save(all_results_test, file = "./Models/all_results_test")
 
+
+# t-test
+t.test(errors)
 
 
 

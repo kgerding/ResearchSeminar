@@ -38,7 +38,10 @@ rm(list=ls())
 ### PART 1: Prep Data ----------------------------------------------------------
 
 # Reading data
-data <- fread('/Users/kiliangerding/Documents/GitHub/ResearchSeminar/Data/2016.csv', drop = 'V1')
+data <- fread('./Data/2016.csv', drop = 'V1')
+
+# for computational reasons
+data <- data[1:1000]
 
 # define logs for simplicity
 data$logbuild <- log(data$num_tax_building)
