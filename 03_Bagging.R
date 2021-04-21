@@ -180,11 +180,8 @@ ggsave('plot_bag.png', plot = plot_bag, path = './Plots/', device = 'png')
 # Plot importance
 vi <- tree_rs %>%
   pull_workflow_fit()
-
 vi <- vi$fit
-
 vi <- vi$imp
-
 
 bag_importance <- vi
 bag_importance$term <- factor(bag_importance$term, levels = bag_importance$term[order(bag_importance$value)])

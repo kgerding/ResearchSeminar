@@ -345,7 +345,7 @@
   agg2016 <- aggregate(step, list(step$Zone), mean)
   
   # plot map
-  map <- leaflet(data = hexagons, width = "100%") %>%
+  map <- leaflet(data = hexagons, height=4000, width=4000) %>%
     addProviderTiles("Stamen.Toner") %>%
     addPolygons(
       weight = 2,
@@ -354,9 +354,9 @@
       fillOpacity = 0.8,
       label = ~ sprintf("%i accidents (%s)", accidents, index)
     ) %>%
-    addLabelOnlyMarkers(data = centers,
-                        lng = centers$lng, lat = centers$lat, label = centers$Zone,
-                        labelOptions = labelOptions(noHide = TRUE, direction = 'top', textOnly = TRUE))
+    addLabelOnlyMarkers(data = agg2016,
+                        lng = agg2016$lng, lat = agg2016$lat, label = agg2016$Zone,
+                        labelOptions = labelOptions(noHide = TRUE, direction = 'middle', textOnly = TRUE))
   
   map
   
@@ -371,6 +371,14 @@
   # basic OLS per zone 
   model <- log(num_tax_building) ~ num_bathroom + num_bedroom + log(area_live_finished) + flag_tub_or_spa + log(age) + flag_fireplace + num_garage + num_pool + num_story
   fit <- lm(model ,data = agg2016)
+  
+  # robsut standard erros
+  fit_robust <- coeftest(fit, vcov = vcovHC(fit, type = "HC0"))
+  
+  # build nice regression table
+  export_summs(fit_robust,
+               number_format = "%.3f",
+               file.name = "2017building.docx", to.file = 'docx')
   
   library(h3jsr)
   # aggregate shapefile
@@ -400,4 +408,6 @@
   
   # plot residuals
   spplot(chi.poly,"chi.sar.res",at=seq(min(chi.poly@data$chi.sar.res,na.rm=TRUE),max(chi.poly@data$chi.sar,na.rm=TRUE), length=12), col.regions=rev(brewer.pal(11,"RdBu")))
+  
+  
   
