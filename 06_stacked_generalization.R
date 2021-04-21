@@ -237,8 +237,9 @@ load("./Models/params_xgb.RData")
 load("./Models/xgb_best_iteration.RData")
 
 # Create learners 
+# the parameters are transfered from what has been tuned in the other files
 learner_ranger <- create.Learner("SL.ranger", params=list(num.trees=1000, 
-                                                          mtry=2, 
+                                                          mtry=3, 
                                                           sample.fraction = 0.5, 
                                                           verbose = TRUE))
 learner_xgb <- create.Learner("SL.xgboost", params=list(ntrees = xgb_best_iteration, 
@@ -252,13 +253,17 @@ learner_xgb <- create.Learner("SL.xgboost", params=list(ntrees = xgb_best_iterat
                                                         min_child_weight = params_xgb$min_child_weight,
                                                         verbose = TRUE))
 learner_bagg <- create.Learner("SL.ipredbagg", params=list(nbagg=100, 
-                                                           tree_depth = 15)) # we use 60 as we did in our simple bagging models
+                                                           tree_depth = 15)) 
 
 
 # Parallelization
 options(mc.cores = detectCores())
 getOption("mc.cores")
 
+# cluster = parallel::makeCluster(detectCores()-2)
+# parallel::clusterEvalQ(cluster, library(SuperLearner))
+# parallel::clusterExport(cluster, c(learner_ranger$names, learner_xgb$names,learner_bagg$names) )
+# 
 
 # Train the learner
 layer.model4 <- SuperLearner(Y = train16$num_tax_building, 
@@ -267,6 +272,7 @@ layer.model4 <- SuperLearner(Y = train16$num_tax_building,
                                family = gaussian(),
                                method = "method.NNLS", # non-negative least squares
                                verbose = TRUE,
+                               #cluster = cluster,
                                cvControl = list(V = 5), # the number of folds
                                SL.library=list("SL.lm", 
                                                learner_ranger$names, 
