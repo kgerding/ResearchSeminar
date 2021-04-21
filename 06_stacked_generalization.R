@@ -61,7 +61,7 @@ for (i in colnames(house_only16_mv)) {
 data = (na.omit(house_only16_mv))
 
 # use only first 10'000
-data = (data[1:10000,])
+#data = (data[1:10000,])
 
 # normalize area_garage
 # log only if num_garage is not 0, to avoid having -inf from log(0)
@@ -230,26 +230,65 @@ str(train16_sparse)
 # plot(cv.model3)
 
 
-### HYPERPARAMETER TUNING ### ------------------------------------------------
+### CREATE INDIVIDUAL LEARNERS ### ------------------------------------------------
 
 # Load coefficient from other models
 load("./Models/params_xgb.RData")
 load("./Models/xgb_best_iteration.RData")
 
-
 # Create learners 
+# the parameters are transfered from what has been tuned in the other files
 learner_ranger <- create.Learner("SL.ranger", params=list(num.trees=1000, 
-                                                          mtry=2, 
+                                                          mtry=3, 
                                                           sample.fraction = 0.5, 
                                                           verbose = TRUE))
 learner_xgb <- create.Learner("SL.xgboost", params=list(ntrees = xgb_best_iteration, 
+                                                        objective = params_xgb$objective,
                                                         max_depth = params_xgb$max_depth, 
-                                                        shrinkage = params_xgb$eta, 
+                                                        eta = params_xgb$eta, 
+                                                        booster = params_xgb$booster,
+                                                        colsample_bytree = params_xgb$colsample_bytree,
+                                                        gamma = params_xgb$gamma,
+                                                        subsample = params_xgb$subsample,
+                                                        min_child_weight = params_xgb$min_child_weight,
                                                         verbose = TRUE))
-learner_svm <- create.Learner("SL.svm", params=list())
-learner_bagg <- create.Learner("SL.ipredbagg", params=list(nbagg=60)) # we use 60 as we did in our simple bagging models
+learner_bagg <- create.Learner("SL.ipredbagg", params=list(nbagg=100, 
+                                                           tree_depth = 15)) 
 
 
+# Parallelization
+options(mc.cores = detectCores())
+getOption("mc.cores")
+
+# cluster = parallel::makeCluster(detectCores()-2)
+# parallel::clusterEvalQ(cluster, library(SuperLearner))
+# parallel::clusterExport(cluster, c(learner_ranger$names, learner_xgb$names,learner_bagg$names) )
+# 
+
+# Train the learner
+layer.model4 <- SuperLearner(Y = train16$num_tax_building, 
+                               X = data.frame(train16_sparse),
+                               newX = data.frame(test16_sparse),
+                               family = gaussian(),
+                               method = "method.NNLS", # non-negative least squares
+                               verbose = TRUE,
+                               #cluster = cluster,
+                               cvControl = list(V = 5), # the number of folds
+                               SL.library=list("SL.lm", 
+                                               learner_ranger$names, 
+                                               learner_xgb$names, 
+                                               learner_bagg$names))
+
+# check the final coefficients
+layer.model4$cvRisk
+layer.model4$coef # coefficients for the super learner
+head(layer.model4$Z) #the z-matrix: cross-validated predicted values for each algorithm in SL. library
+head(layer.model4$library.predict) # the prediction for the z-matrix
+head(layer.model4$SL.predict) # the final prediction
+#head(predict.SuperLearner(layer.model4, newdata = test16_sparse)$pred) # the final prediction
+
+
+# # cross-validation to see which algorithms perfom best
 # cv.model4 <- CV.SuperLearner(Y = train16$num_tax_building,
 #                              X = data.frame(train16_sparse),
 #                              family = gaussian(),
@@ -257,40 +296,82 @@ learner_bagg <- create.Learner("SL.ipredbagg", params=list(nbagg=60)) # we use 6
 #                              parallel = 'multicore',
 #                              method = "method.NNLS", # non-negative least sqaures
 #                              V = 5,
-#                              SL.library=list("SL.lm", 
-#                                              learner_ranger$names, 
-#                                              learner_xgb$names, 
-#                                              learner_svm$names, 
+#                              SL.library=list("SL.lm",
+#                                              learner_ranger$names,
+#                                              learner_xgb$names,
 #                                              learner_bagg$names))
+
+
+### SUBSEMBLE ###--------------------------------------------
+# library(subsemble)
 # 
-# plot(cv.model4)
+# ntrees1 = xgb_best_iteration
+# objective1 = params_xgb$objective
+# max_depth1 = params_xgb$max_depth
+# eta1 = params_xgb$eta
+# booster1 = params_xgb$booster
+# colsample_bytree1 = params_xgb$colsample_bytree
+# gamma1 = params_xgb$gamma
+# subsample1 = params_xgb$subsample
+# min_child_weight1 = params_xgb$min_child_weight
+# 
+# 
+# SL.ranger1 <- function(..., num.tress = 1000, mtry = 2, sample.fraction = 0.5) {
+#   SL.randomForest(..., num.tress = num.tress, mtry = mtry, sample.fraction = sample.fraction)	}
+# SL.xgboost1 <- function(...,
+#                        ntrees = ntrees1, 
+#                        objective = objective1, 
+#                        max_depth = max_depth1, 
+#                        eta = eta1,
+#                        booster = booster1, 
+#                        colsample_bytree = colsample_bytree1,
+#                        gamma = gamma1, 
+#                        subsample = subsample1,
+#                        min_child_weight = min_child_weight1
+#                        ) {
+#   SL.xgboost(..., 
+#              ntrees = ntrees, 
+#              objective = objective,
+#              max_depth = maxdepth,
+#              eta = eta,
+#              booster = booster,
+#              colsample_bytree = colsample_bytree,
+#              gamma = gamma,
+#              subsample = subsample,
+#              min_child_weight = min_child_weight 
+#              )}
+# SL.ipredbagg1 <- function(..., nbagg = 100, tree_depth = 15) {
+#   SL.ipredbagg(..., nbagg = nbagg, tree_depth = tree_depth)}
+# 
+# 
+# learner <- c("SL.ranger1", "SL.xgboost1", "SL.ipredbagg1")
+# metalearner <- "SL.lm"
+# subsets <- 5 # if set to 1 we have the same as the function from SuperLearner
+# 
+# fit <- subsemble(x = train16_sparse,
+#                  y = output_vector,
+#                  newx = test16_sparse,
+#                  family = gaussian(),
+#                  learner = learner,
+#                  metalearner = metalearner,
+#                  subsets = subsets,
+#                  cvControl = list(V = 5), #cross-validation
+#                  learnControl = list('crossprod'),
+#                  parallel = 'multicore') #train each learner on each of the subsets
+# 
+# 
+# fit$metafit #list of meta-learner
+# fit$subfits #list of predictive models
+# 
+# fit$pred # final predictions
 
-# Parallelization
-options(mc.cores = detectCores())
-getOption("mc.cores")
 
 
-# Train the learner
-layer.model4 <- mcSuperLearner(Y = train16$num_tax_building, 
-                               X = data.frame(train16_sparse),
-                               family = gaussian(),
-                               method = "method.NNLS", # non-negative least squares
-                               verbose = TRUE,
-                               cvControl = list(V = 10), # the number of folds
-                               SL.library=list("SL.lm", 
-                                               learner_ranger$names, 
-                                               learner_xgb$names, 
-                                               learner_svm$names, 
-                                               learner_bagg$names))
-
-# check the final coefficients
-layer.model4
 
 ### TESTING THE MODEL ###--------------------------------------------
 
 # predict
-pred_stacked_test <- (predict.SuperLearner(layer.model4, newdata = test16_sparse))
-pred_stacked_test <- pred_stacked_test$pred
+pred_stacked_test <- layer.model4$SL.predict
 pred_stacked_train <- (predict.SuperLearner(layer.model4, newdata = train16_sparse))
 pred_stacked_train <- pred_stacked_train$pred
 
@@ -351,19 +432,24 @@ plot_stacked <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)
   labs(x = 'Index', y = 'Log(num_tax_building)')
 plot_stacked
 
+# Plot CV-Model
+plot(cv.model4)
+
+
 
 ### SAVE PLOTS AND DATAFRAMES ### --------------------------------------------
 
-# save plot
+# save actual vs. predicted
 ggsave('plot_stacked.png', path = './Plots/', plot = plot_stacked, device = 'png')
+
+# save cv model plot
+ggsave('plot_stacked_cv.png', path = './Plots/', plot = cv.model4, device = 'png')
 
 # save comparison_xgb
 save(results_stacked,file="./Models/results_stacked.Rdata")
 
 # save errors of predictions on test
 save(errors_stacked,file="./Models/errors_stacked.Rdata")
-
-
 
 # stop the timer
 toc()
