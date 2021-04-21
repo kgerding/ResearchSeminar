@@ -56,7 +56,7 @@ setwd('/Users/tgraf/Google Drive/Uni SG/Master/Research Seminar /Repository')
 data <- fread('./Data/2016.csv', drop = 'V1')
 
 # for computational reasons
-data <- data[1:10000]
+#data <- data[1:10000]
 
 
 # define logs for simplicity
