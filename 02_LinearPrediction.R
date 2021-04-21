@@ -44,6 +44,7 @@ hedonic_pred_train = predict(hedonic_build, newdata = train16)
 hedonic_pred = predict(hedonic_build, newdata = test16)
 
 # plotting
+
 plot(hedonic_pred, test16$logbuild,
      xlab = "Predicted", ylab = "Actual",
      main = "Predicted vs Actual: Linear Model, Test Data",
