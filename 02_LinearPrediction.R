@@ -1,3 +1,15 @@
+#########################################################
+### LINEAR REGRESSION-----------------------------------
+# Authors: Tim Graf, Kilian Gerding
+#########################################################
+
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(foreach)
+library(data.table)
+
+
 ### PART 1: Prep Data ----------------------------------------------------------
 
 # Reading data

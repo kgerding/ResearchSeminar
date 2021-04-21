@@ -1,5 +1,6 @@
 #########################################################
-### XG Boost -----------------------------------
+### XGBOOST----------------------------------
+# Authors: Tim Graf, Kilian Gerding
 #########################################################
 
 "note: Xgboost manages only numeric vectors.
@@ -65,7 +66,7 @@ for (i in colnames(house_only16_mv)) {
 data = (na.omit(house_only16_mv))
 
 # use only first 10'000
-#data = (data[1:10000,])
+data = (data[1:100000,])
 
 # normalize area_garage
 # log only if num_garage is not 0, to avoid having -inf from log(0)
@@ -110,94 +111,9 @@ dtest <- xgb.DMatrix(data = sparse_matrix_test, label=test_vector)
 
 
 ### PART 2: XGBOOST Training ###  -----------------------------
-# Note: XGBoost does not necessarily need normalization of all data
-
-# # Model 1: Default parameters  -----------------------------
-# #Let's start with a standard model and parameters and start optimizing the parameters later from here
-# 
-# params <- list(booster = "gbtree",
-#                objective = "reg:squarederror",
-#                eta=0.3, # learning rate, between 0 and 1
-#                gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
-#                max_depth=6, # max depth of trees, the more deep the more complex and overfitting
-#                min_child_weight=1, # min number of instances per child node, blocks potential feature interaction and thus overfitting
-#                subsample=1, # number of observations per tree, typically between 0.5 - 0.8
-#                colsample_bytree=1) # number of variables per tree, typically between 0.5 - 0.9
-# 
-# # using cross-validation to find optimal nrounds parameter
-# xgbcv <- xgb.cv(params = params,
-#                 data = dtrain,
-#                 nrounds = 100,
-#                 nfold = 10,
-#                 showsd = T, # whether to show standard deviation of cv
-#                 stratified = F,
-#                 print_every_n = 1,
-#                 early_stopping_rounds = 20, # stop if we don't see much improvement
-#                 maximize = F,
-#                 verbose = 2)
-# 
-# # Result of best iteration
-# xgbcv$best_iteration
-# 
-# # first training with optimized nround
-# xgb1 <- xgb.train(params = params,
-#                   data = dtrain,
-#                   nrounds = xgbcv$best_iteration,
-#                   watchlist = list(test = dtest, train = dtrain),
-#                   early_stopping_rounds = 20,
-#                   maximize = F,
-#                   eval_metric = "rmse"
-# )
-# 
-# # model prediction
-# xgb1_pred <- predict(xgb1, dtest)
-# rmse_xgb1 <- sqrt(mean((xgb1_pred - test_vector)^2))
-# r2_xgb1 <- 1 - sum((test_vector-xgb1_pred)^2) / sum((test_vector-mean(xgb1_pred))^2)
 
 
-
-# Find Optimized parameters 1  -----------------------------
-
-#library(klaR)
-# library(doParallel)
-# library(caret)
-# 
-# 
-# tic()
-# 
-# fitGrid <- expand.grid(nrounds = 1000,
-#                        max_depth = c(3,4,5,6,7,8,9,10),
-#                        eta = c(0.05, 0.1, 0.2, 0.3, 0.5),
-#                        gamma = c(0, 0.1, 0.2, 0.3, 0.5),
-#                        colsample_bytree = c(0.1, 0.2, 0.3, 0.5),
-#                        min_child_weight = c(1, 3, 5, 7, 9),
-#                        subsample = c(0.1, 0.3, 0.6, 0.8, 1)
-# )
-# 
-# 
-# # for a random search
-# fitControl <- caret::trainControl(method = "cv", #resampling method
-#                            number = 10, # number of folds or numer of resampling iterations
-#                            summaryFunction = defaultSummary,
-#                            search = "random", # or "grid"
-#                            verboseIter = TRUE,
-#                            allowParallel = TRUE)
-# 
-# #set.seed(123)
-# xgb_fit <- caret::train(y = as.vector(output_vector), x = as.matrix(sparse_matrix_train),
-#                  method = "xgbTree",
-#                  objective = "reg:squarederror",
-#                  tuneLength = 10, # how many times to change parameters per fold and repetition
-#                  trControl = fitControl,
-#                  tuneGrid = fitGrid) # only needed for gridSearch
-# xgb_fit
-# 
-# # trellis.par.set(caretTheme())
-# # plot(xgb_fit)
-# toc()
-
-
-### FIND OPTIMIZED PARAMETERS ###  -----------------------------
+# FIND OPTIMIZED PARAMETERS # 
 
 
 #set.seed(123)
@@ -339,58 +255,6 @@ rmse_lm <- sqrt(mean((pred_lm - test_vector)^2))
 r2_lm <- 1 - (sum((test_vector-pred_lm)^2) / sum((test_vector-mean(test_vector))^2) )
 adj_r2_lm <- 1 - ((1 - r2_lm) * (nrow(test_vector) - 1)) / (nrow(test_vector) - ncol(test_vector) - 1)
 
-
-### MODEL 3 LINEAR BOOSTING ###---------------------------
-# Note that linear boosting is great to capture linear relationships while trees are better at capturing non-linear relationship"
-# 
-# # take the parameters of mytune
-# params <- list(booster = "gblinear", 
-#                objective = "reg:squarederror",
-#                eta=0.3, # learning rate, between 0 and 1
-#                gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
-#                max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
-#                min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
-#                subsample= mytune$x$subsample, # number of observations per tree, typically between 0.5 - 0.8
-#                colsample_bytree = mytune$x$colsample_bytree) # number of variables per tree, typically between 0.5 - 0.9
-# 
-# # using cross-validation to find optimal nrounds parameter
-# xgbcv <- xgb.cv(params = params,
-#                 data = dtrain, 
-#                 nrounds = 100, 
-#                 nfold = 10,
-#                 showsd = T, # whether to show standard deviation of cv
-#                 stratified = F, 
-#                 print_every_n = 1, 
-#                 early_stopping_rounds = 20, # stop if we don't see much improvement
-#                 maximize = F, 
-#                 verbose = 2)
-# 
-# # Result of best iteration
-# xgbcv$best_iteration
-# 
-# 
-# # first training with optimized nround
-# xgb3 <- xgb.train(data = dtrain, 
-#                   booster = "gblinear",
-#                   objective = "reg:squarederror",
-#                   eta=0.3, # learning rate, between 0 and 1
-#                   gamma=0, # regularization (prevents overfitting), higher means more penality for large coef
-#                   max_depth = mytune$x$max_depth, # max depth of trees, the more deep the more complex and overfitting
-#                   min_child_weight = mytune$x$min_child_weight, # min number of instances per child node, blocks potential feature interaction and thus overfitting
-#                   subsample= mytune$x$subsample, # number of observations per tree, typically between 0.5 - 0.8
-#                   colsample_bytree = mytune$x$colsample_bytree, # number of variables per tree, typically between 0.5 - 0.9
-#                   nrounds = xgbcv$best_iteration, 
-#                   watchlist = list(test = dtest, train = dtrain), 
-#                   early_stopping_rounds = 20, 
-#                   maximize = F, 
-#                   eval_metric = "rmse")
-# 
-# 
-# # model prediction
-# xgb3_pred <- predict(xgb3, dtest)
-# rmse_xgb3 <- sqrt(mean((xgb3_pred - test_vector)^2))
-# r2_xgb3 <- 1 - sum((test_vector-xgb3_pred)^2) / sum((test_vector-mean(xgb3_pred))^2)
-# 
 
 
 # PLOTS --------------------------------------------------
