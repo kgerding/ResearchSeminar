@@ -85,3 +85,10 @@ plot_lin <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) 
   scale_color_manual(values = colors) +
   labs(x = 'Index', y = 'Log(num_tax_building)')
 plot_lin
+
+
+# save results
+save(results_lin,file="./Models/results_xgboost.RData")
+
+# save errors
+save(errors_lin, file = "./Models/errors_xgb.RData")
