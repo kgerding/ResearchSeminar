@@ -73,18 +73,10 @@ test_vector <- matrix(test16$logbuild)
 control <- trainControl(method="repeatedcv", number=10, repeats=5, search="random")
 
 set.seed(123)
-mtry <- floor(sqrt(11))
-rf_random <- train(model, data=train16, method="rf", metric='RMSE', tuneLength=15, trControl=control)
+tunegrid <- expand.grid(.mtry=c(1:15))
+rf_random <- train(model, data=train16, method="rf", metric='RMSE', tuneGrid=tunegrid, trControl=control)
 print(rf_random)
 plot(rf_random)
-
-
-control <- trainControl(method="repeatedcv", number=10, repeats=3, search="grid")
-set.seed(seed)
-tunegrid <- expand.grid(.mtry=c(1:15))
-rf_gridsearch <- train(Class~., data=dataset, method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
-print(rf_gridsearch)
-plot(rf_gridsearch)
 
 price_forest <- randomForest(
   model,
