@@ -38,7 +38,9 @@ rm(list=ls())
 ### PART 1: Prep Data ----------------------------------------------------------
 
 # Reading data
-data <- fread('/Users/kiliangerding/Documents/GitHub/ResearchSeminar/Data/2016.csv', drop = 'V1')
+setwd('/Users/tgraf/Google Drive/Uni SG/Master/Research Seminar /Repository')
+
+data <- fread('./Data/2016.csv', drop = 'V1')
 
 # define logs for simplicity
 data$logbuild <- log(data$num_tax_building)
@@ -107,6 +109,8 @@ plot(price_forest_pred, log(test16$num_tax_building),
 grid()
 abline(0, 1, col = "red", lwd = 2)
 
+### PART 3: TESTING THE MODEL ###--------------------------------------------
+
 # metrics for train
 rmse_rf_train <- sqrt(mean((price_forest_pred_train - output_vector)^2))
 r2_rf_train <- 1 - ( sum((output_vector-price_forest_pred_train)^2) / sum((output_vector-mean(output_vector))^2) )
@@ -132,6 +136,8 @@ merged_df <- merged_df[order(merged_df$logbuild),]
 merged_df$initialindex <- row.names(merged_df)
 row.names(merged_df) <- NULL
 
+### PLOTS ###--------------------------------------------
+
 # Plot predicted vs. actual 
 colors <- c("actual" = "red", "predicted" = "blue")
 plot_rf <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) +
@@ -141,3 +147,22 @@ plot_rf <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) +
   scale_color_manual(values = colors) +
   labs(x = 'Index', y = 'Log(num_tax_building)')
 plot_rf
+
+
+### SAVE PLOTS AND DATAFRAMES ### --------------------------------------------
+
+# save actual vs. predicted
+ggsave('plot_stacked.png', path = './Plots/', plot = plot_stacked, device = 'png')
+
+# save cv model plot
+ggsave('plot_stacked_cv.png', path = './Plots/', plot = cv.model4, device = 'png')
+
+# save comparison_xgb
+save(results_stacked,file="./Models/results_stacked.Rdata")
+
+# save errors of predictions on test
+save(errors_stacked,file="./Models/errors_stacked.Rdata")
+
+# stop the timer
+toc()
+
