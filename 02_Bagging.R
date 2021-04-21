@@ -7,6 +7,7 @@ library(dplyr)
 library(ggplot2)
 library(doParallel)  
 library(foreach)
+library(data.table)
 
 # for bagging
 library(caret)
@@ -15,14 +16,21 @@ library(ipred)
 library(pdp)
 library(vip)
 
-
 # RF
+library(ranger)
 library(rpart.plot)
 library(randomForest)
 library(gbm)
 library(MASS)
 library(ISLR)
-library(adabag)
+library(tidymodels)
+library(baguette)
+library(dials)
+library(workflows)
+library(tune)
+library(recipes)
+library(rsample)
+library(yardstick)
 
 
 rm(list=ls())
@@ -30,64 +38,22 @@ rm(list=ls())
 ### PART 1: Prep Data ----------------------------------------------------------
 
 # Reading data
-data <- fread('/Users/kiliangerding/Documents/GitHub/ResearchSeminar/Data/house_only16.csv', drop = 'V1')
+data <- fread('/Users/kiliangerding/Documents/GitHub/ResearchSeminar/Data/2016.csv', drop = 'V1')
 
-# define new columns
-data$logage <- log(data$age)
+# define logs for simplicity
+data$logbuild <- log(data$num_tax_building)
 data$logarea <- log(data$area_live_finished)
+data$logage <- log(data$age)
+data$loglot <- log(data$area_lot)
+data$loggarage <- ifelse(data$num_garage > 0,log(data$num_garage),0)
 
-colClasses = c(id_parcel = 'numeric',
-               num_bathroom = 'numeric',
-               num_bedroom = 'numeric',
-               area_live_finished = 'numeric',
-               flag_tub_or_spa = 'numeric',
-               loc_latitude = 'numeric',       
-               loc_longitude = 'numeric',
-               area_lot = 'numeric',
-               factor = 'factor',
-               loc_zip  = 'numeric',
-               loc_county = 'factor',
-               age = 'numeric',
-               flag_fireplace = 'numeric',
-               num_tax_building = 'numeric',
-               num_tax_total = 'numeric',
-               num_tax_land = 'numeric',
-               num_unit = 'numeric',
-               quality_factor = 'factor',
-               heating_factor = 'factor',
-               prop_living = 'numeric_character',
-               build_land_prop = 'numeric_character',
-               logbuild = 'numeric',
-               logtotal = 'numeric',
-               logage = 'numeric',
-               logarea = 'numeric')
-
-# make conversions
-for (i in colnames(data)) {
-  if (colClasses[i][[1]] == 'numeric') {
-    data[[i]] <- as.numeric(data[[i]])
-  } else if (colClasses[[i]] == 'factor') {
-    data[[i]] <- as.factor(data[[i]])
-  } else if (colClasses[[i]] == 'numeric_character'){
-    data[[i]] <- as.numeric(sub(",", ".", data[[i]], fixed = TRUE))
-  }
-}
-
-# omit variables
-omit <- c('id_parcel', 'loc_latitude', 'loc_longitude', 'loc_zip', 'loc_county',
-          'num_tax_land', 'factor','num_tax_total', 'build_land_prop', 'prop_living')
-
-# Split the data into train and test
-data <- data%>% select(-omit)
-
-# select the dataframe
-data = na.omit(data)
-
-# use only first 10'000
-#data = data[1:10000,]
+# define model
+model <- logbuild ~ logarea + loglot + loggarage + logage + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa
 
 # Training data
 set.seed(123)
+
+# Split the data into train and test
 smp_size <- floor(0.75 * nrow(data)) ## 75% of the sample size
 train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 
@@ -95,88 +61,118 @@ train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 train16 <- data[train_ind,]
 test16 <- data[-train_ind, ]
 
+# define output and test vector
+output_vector <- matrix(train16$logbuild)
+test_vector <- matrix(test16$logbuild)
 
-### PART 2: Prediction of linear Model ----------------------------------------
+### PART 2: Bagging ------------------------------------------------------------
 
-# linear model specification
-hedonic_build <- lm(logbuild ~ num_bathroom + num_bedroom +
-                      log(area_live_finished) + 
-                      flag_tub_or_spa + log(age) +
-                      flag_fireplace ,data = train16)
+# define recipe
+bagging_recipe <- recipes::recipe(data = train16,formula = model)
 
-hedonic_build_fact <- lm(logbuild ~ num_bathroom + num_bedroom +
-                           log(area_live_finished) + 
-                           flag_tub_or_spa + log(age) + flag_fireplace +
-                           factor + num_unit + quality_factor + heating_factor,
-                         data = train16)
+# define cross validation
+cv <- vfold_cv(train16, v=5)
 
-# prediction with linear models
-hedonic_pred = predict(hedonic_build, newdata = test16)
-hedonic_fact_pred = predict(hedonic_build_fact, newdata = test16)
+# Produce the model
+mod_bag <- bag_tree() %>%
+  set_mode("regression") %>%
+  set_engine("rpart", times = 10) #10 bootstrap resamples
 
-# plotting
-plot(hedonic_pred, log(test16$num_tax_building),
-     xlab = "Predicted", ylab = "Actual",
-     main = "Predicted vs Actual: Linear Model, Test Data",
-     col = "blue", pch = 20)
-grid()
-abline(0, 1, col = "red", lwd = 2)
+# Create workflow
+wflow_bag <- workflow() %>% 
+  add_recipe(bagging_recipe) %>%
+  add_model(mod_bag)
 
-#plotting
-plot(hedonic_fact_pred, log(test16$num_tax_building),
-     xlab = "Predicted", ylab = "Actual",
-     main = "Predicted vs Actual: Linear Model, Test Data",
-     col = "blue", pch = 20)
-grid()
-abline(0, 1, col = "red", lwd = 2)
+# Tuning hyperparameters
+tune_spec_bag <- 
+  bag_tree(tree_depth = tune()) %>%
+  set_mode("regression") %>%
+  set_engine("rpart", times = 10)
 
-# calc RSME
-
-calc_rmse = function(actual, predicted) {
-  sqrt(mean((actual - predicted) ^ 2))
-}
-
-# linear performance
-hedonic_rmse = calc_rmse(hedonic_pred, log(test16$num_tax_building))
-hedonic_fact_rmse = calc_rmse(hedonic_fact_pred , log(test16$num_tax_building))
-
-hedonic_rmse 
-hedonic_fact_rmse
-
-### PART 3: Prediction of bagging Model ----------------------------------------
-
-# set seed for replicability
-set.seed(123)
-
-# train simple bagged model w/o CV
-price_bagging <- ipred::bagging(
-  formula = logbuild ~ num_bathroom + num_bedroom + logarea + logage + flag_tub_or_spa + flag_fireplace,
-  data = train16,
-  nbagg = 60,  
-  coob = TRUE,
-  control = rpart.control(minsplit = 2, cp = 0)
+#Create a regular grid of values to try using a convenience function 
+bag_grid <- grid_regular(
+  tree_depth(),
+  levels = 5
 )
 
-# show model
-price_bagging
+#Create the workflow for the tuned bagged model 
+bag_wf <- workflow() %>%
+  add_formula(logbuild ~ logarea + loglot + loggarage + logage + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa) %>%
+  add_model(tune_spec_bag)
 
-# compute forecasts
-predict_price <- predict(price_bagging, newdata = test16)
+#Tune the bagged tree model
+bag_res <- tune_grid(
+  wflow_bag %>% update_model(tune_spec_bag),
+  cv,
+  grid = bag_grid,
+  metrics=metric_set(rmse, rsq),
+  control = control_resamples(save_pred = TRUE)
+)
 
-# R2
-bagging_r2 = 1- ((sum((test16$logbuild - predict_price)^2))/(sum((test16$logbuild-mean(test16$logbuild))^2)))
-bagging_r2
+show_best(bag_res, metric = "rmse")
 
-# plotting
-plot(predict_price, log(test16$num_tax_building),
-     xlab = "Predicted", ylab = "Actual",
-     main = "Predicted vs Actual: Linear Model, Test Data",
-     col = "blue", pch = 20)
-grid()
-abline(0, 1, col = "red", lwd = 2)
+tree_spec <- bag_tree(
+  tree_depth = 8
+) %>%
+  set_engine("rpart", times = 100) %>%
+  set_mode("regression")
+
+bag_wf2 <- workflow() %>%
+  add_formula(logbuild ~ logarea + loglot + loggarage + logage + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa)
+
+tree_rs <- bag_wf2 %>%
+  add_model(tree_spec) %>%
+  fit(train16)
+
+train_rs <- train16 %>%
+  bind_cols(predict(tree_rs, train16))
+
+test_rs <- test16 %>%
+  bind_cols(predict(tree_rs, test16))
+
+test_rs %>%
+  metrics(logbuild, .pred)
+
+bagging_pred <- test_rs$.pred
+bagging_train <- train_rs$.pred
+
+# metrics for train
+rmse_bag_train <- sqrt(mean((bagging_train - output_vector)^2))
+r2_bag_train <- 1 - ( sum((output_vector-bagging_train)^2) / sum((output_vector-mean(output_vector))^2) )
+adj_r2_bag_train <- 1 - ((1 - r2_bag_train) * (nrow(output_vector) - 1)) / (nrow(output_vector) - ncol(output_vector) - 1)
+
+# metrics for test
+rmse_bag_test <- sqrt(mean((bagging_pred - test_vector)^2))
+r2_bag_test <- 1 - ( sum((test_vector-bagging_pred)^2) / sum((test_vector-mean(test_vector))^2) )
+adj_r2_bag_test <- 1 - ((1 - r2_bag_test) * (nrow(test_vector) - 1)) / (nrow(test_vector) - ncol(test_vector) - 1)
+
+# combining results
+results_bag_train <- rbind(rmse_bag_train, r2_bag_train, adj_r2_bag_train)
+results_bag_test <- rbind(rmse_bag_test, r2_bag_test, adj_r2_bag_test)
+results_bag <- data.frame(cbind(results_bag_train, results_bag_test))
+colnames(results_bag) <- c("train_bag", "test_bag")
+rownames(results_bag) <- c("RMSE", "R2", "ADJ_R2")
+
+errors_bag <- bagging_pred - test_vector
+
+# merge dataframes
+merged_df <- data.frame(cbind(bagging_pred, test16)) #by 0 merges based on index
+merged_df <- merged_df[order(merged_df$logbuild),]
+merged_df$initialindex <- row.names(merged_df)
+row.names(merged_df) <- NULL
+
+# Plot predicted vs. actual 
+colors <- c("actual" = "red", "predicted" = "blue")
+plot_bag <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) +
+  geom_point(aes(y = bagging_pred, color = 'predicted')) +
+  geom_point(aes(y = logbuild, color = 'actual')) +
+  ggtitle('Bagging: Actual vs. predicted values') + 
+  scale_color_manual(values = colors) +
+  labs(x = 'Index', y = 'Log(num_tax_building)')
+plot_bag
 
 
-# assess 10-50 bagged trees
+# assess RMSE 10-150 bagged trees (tuning)
 ntree <- 10:150
 
 # create empty vector to store OOB RMSE values
@@ -188,7 +184,7 @@ for (i in seq_along(ntree)) {
   
   # perform bagged model
   model <- bagging(
-    formula = logbuild ~ num_bathroom + num_bedroom + logarea + logage + flag_tub_or_spa + flag_fireplace,
+    formula = logbuild ~ logarea + loglot + loggarage + logage + num_bedroom + num_bathroom + num_story + num_garage + num_pool + flag_fireplace + flag_tub_or_spa,
     data    = train16,
     coob    = TRUE,
     nbagg   = ntree[i]
@@ -197,157 +193,6 @@ for (i in seq_along(ntree)) {
   rmse[i] <- model$err
 }
 
+# plot RSME
 plot(ntree, rmse, type = 'l', lwd = 2, main = "RMSE vs. Number of N-Trees in a Bagging Model")
 abline(v = 25, col = "red", lty = "dashed")
-
-### PART 3: Prediction of bagging Model with Cross Validation ------------------
-
-price_bagging_cv <- bagging.cv(
-  formula = logbuild ~ num_bathroom + num_bedroom + logarea +
-    logage + flag_tub_or_spa + flag_fireplace,
-  data = train16,
-  v = 10,
-  mfinal = 100,
-  control = rpart.control(minsplit = 2, cp = 0),
-  par = TRUE
-)
-
-# show model
-price_bagging_cv
-
-# compute forecasts
-predict_price_cv <- predict(price_bagging_cv, newdata = test16)
-
-# plotting
-plot(predict_price_cv, log(test16$num_tax_building),
-     xlab = "Predicted", ylab = "Actual",
-     main = "Predicted vs Actual: Linear Model, Test Data",
-     col = "blue", pch = 20)
-grid()
-abline(0, 1, col = "red", lwd = 2)
-
-
-# Create a parallel socket cluster
-cl <- makeCluster(8) # use 8 workers
-registerDoParallel(cl) # register the parallel backend
-
-# other model
-price_bagging2 <- train(
-  formula = log(num_tax_building) ~ num_bathroom + num_bedroom + logarea +
-    logage + flag_tub_or_spa + flag_fireplace,
-  data = train16,
-  method = "treebag",
-  trControl = trainControl(method = "cv", number = 10),
-  nbagg = 100,  
-  control = rpart.control(minsplit = 2, cp = 0)
-)
-
-stopCluster(cl)
-
-price_bagging2
-
-#plotting
-plot(predict_price, log(test16$num_tax_building),
-     xlab = "Predicted", ylab = "Actual",
-     main = "Predicted vs Actual: Linear Model, Test Data",
-     col = "blue", pch = 20)
-grid()
-abline(0, 1, col = "red", lwd = 2)
-
-
-
-#calculate variable importance
-VI <- data.frame(var=names(select(test16, -'num_tax_total')), imp=varImp(price_bagging))
-
-#sort variable importance descending
-VI_plot <- VI[order(VI$Overall, decreasing=TRUE),]
-
-#visualize variable importance with horizontal bar plot
-barplot(VI_plot$Overall,
-        names.arg=rownames(VI_plot),
-        cex.names = 0.5,
-        las = 2,
-        horiz=TRUE,
-        col='steelblue',
-        xlab='Variable Importance')
-
-
-# Create a parallel socket cluster
-cl <- makeCluster(8) # use 8 workers
-registerDoParallel(cl) # register the parallel backend
-
-# Fit trees in parallel and compute predictions on the test set
-predictions <- foreach(
-  icount(100), 
-  .packages = "rpart", 
-  .combine = cbind
-) %dopar% {
-  # bootstrap copy of training data
-  index <- sample(nrow(train16), replace = TRUE)
-  train_boot <- train16[index, ]  
-  
-  # fit tree to bootstrap copy
-  bagged_tree <- rpart(
-    logbuild ~ num_bathroom + num_bedroom + logarea + logage + flag_tub_or_spa + flag_fireplace, 
-    control = rpart.control(minsplit = 2, cp = 0),
-    data = train_boot
-  ) 
-  
-  predict(bagged_tree, newdata = test16)
-}
-
-stopCluster(cl)
-
-plot(boston_bag, col = "dodgerblue", lwd = 2, main = "Bagged Trees: Error vs Number of Trees")
-grid()
-
-
-# Construct partial dependence plots
-p1 <- pdp::partial(
-  price_bagging, 
-  pred.var = 'num_tax_total',
-  grid.resolution = 20
-) %>% 
-  autoplot()
-
-p2 <- pdp::partial(
-  price_bagging, 
-  pred.var = "Lot_Frontage", 
-  grid.resolution = 20
-) %>% 
-  autoplot()
-
-gridExtra::grid.arrange(p1, p2, nrow = 1)
-
-vip(price_bagging2, num_features = 40)
-
-
-### PART 4: Prediction of Random Forest with Cross Validation ------------------
-
-price_forest <- randomForest(
-  logbuild ~ num_bathroom + num_bedroom + logarea + logage + flag_tub_or_spa + flag_fireplace,
-  data = train16,
-  mtry = 2, 
-  importance = TRUE,
-  ntrees = 500
-)
-
-# show results
-price_forest
-
-# plot RSME
-plot(price_forest, col = "blue", lwd = 2, main = "Bagged Trees: Error vs Number of Trees")
-grid()
-
-# variable importance
-varImpPlot(price_forest, type = 1, main = 'Relative Importance of Variables')
-
-price_forest_pred = predict(price_forest, newdata = test16)
-
-#plotting
-plot(price_forest_pred, log(test16$num_tax_building),
-     xlab = "Predicted", ylab = "Actual",
-     main = "Predicted vs Actual: Linear Model, Test Data",
-     col = "blue", pch = 20)
-grid()
-abline(0, 1, col = "red", lwd = 2)
