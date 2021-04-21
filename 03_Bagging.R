@@ -171,6 +171,27 @@ plot_bag <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) 
   labs(x = 'Index', y = 'Log(num_tax_building)')
 plot_bag
 
+ggsave('plot_bag.png', plot = plot_bag, path = './Plots/', device = 'png')
+
+
+# Plot importance
+
+importance <- xgb.importance(feature_names = colnames(sparse_matrix_train), model = xgb2)
+bag_importance <- xgb.plot.importance(importance_matrix = importance, top_n = 15)
+
+plot_xgb_importance <- bag_importance %>%
+  mutate(Feature = fct_reorder(Feature, Importance)) %>%
+  ggplot(aes(x=Feature, y=Importance)) +
+  geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
+  coord_flip() +
+  xlab("") +
+  theme_bw() +
+  ggtitle('Feature Importance Plot for XG-Boost')
+plot_bag_importance
+
+ggsave('plot_bag_imp.png', plot = plot_bag_importance, path = './Plots/', device = 'png')
+
+
 
 # assess RMSE 10-150 bagged trees (tuning)
 ntree <- 10:150

@@ -87,6 +87,8 @@ plot_lin <- ggplot(data = merged_df, aes(x = as.numeric(row.names(merged_df)))) 
   labs(x = 'Index', y = 'Log(num_tax_building)')
 plot_lin
 
+ggsave('plot_ln_v1.png', plot = plot_lin, path = './Plots/', device = 'png')
+
 
 # save results
 save(results_lin,file="./Models/results_lin.RData")
