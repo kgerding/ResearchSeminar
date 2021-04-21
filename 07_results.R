@@ -20,14 +20,26 @@ load("./Models/errors_bagging.RData")
 load("./Models/errors_lm.RData")
 
 #errors <- cbind(errors_stacked, errors_xgb, errors_randomforest, errors_bagging, errors_lm)
-errors <- cbind(errors_stacked, errors_xgb)
-colnames(errors) <- c("Stacked_Generalization", "XGBoost")
-errors <- (data.frame(errors) %>% gather(Algorithm, prediction))
+errors_wide <- cbind(errors_lin,
+                errors_bag, 
+                errors_rf,
+                errors_xgb,
+                errors_stacked)
+
+colnames(errors_wide) <- c("Linear Prediction",
+                      "Bagging",
+                      "Random Forest", 
+                      "XGBoost", 
+                      "Stacked_Generalization")
+
+errors_long <- (data.frame(errors_wide) %>% gather(Algorithm, prediction))
 
 # Plot boxplot
-boxplot <- ggplot(errors, aes(x=Algorithm, y=prediction)) + 
+boxplot <- ggplot(errors_long, aes(x=Algorithm, y=prediction)) + 
   geom_boxplot(outlier.colour="red", outlier.shape=8, outlier.size=2) + 
   stat_summary(fun.y=mean, geom="point", shape=23, size=4) +
+  ylab("Prediction Error") +
+  xlab("") + 
   ggtitle('Predicted Values of all Algorithms')
 boxplot
 
@@ -52,8 +64,15 @@ save(all_results_train, file = "./Models/all_results_train")
 save(all_results_test, file = "./Models/all_results_test")
 
 
+# mean for errors
+erroes_wide <- data.frame(errors_wide)
+
 # t-test
-t.test(errors)
+t.test(errors_wide[,1])
+t.test(errors_wide[,2])
+t.test(errors_wide[,3])
+t.test(errors_wide[,4])
+t.test(errors_wide[,5])
 
 
 
